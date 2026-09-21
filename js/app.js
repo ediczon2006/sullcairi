@@ -1,7 +1,7 @@
 /**
  * ============================================================================
- * CONTROLADOR PRINCIPAL DE LA APLICACIÓN (js/app.js)
- * Versión 2.1 - Filtro por Lugares/Sedes e Importador de Excel
+ * CONTROLADOR PRINCIPAL - ESTACIÓN DE SERVICIOS JESÚS (js/app.js)
+ * Versión 2.2 - Previsualizador completo de Excel y Soporte de Tanques Oficiales
  * ============================================================================
  */
 
@@ -13,9 +13,41 @@ const App = (() => {
   let valeSeleccionadoWA = null;
   let valesParaImportar = [];
   let ordenColumna = { col: 'fecha', asc: false };
+  let debounceBusqueda = null;
+
+  function obtenerFechaHoyISO() {
+    const hoy = new Date();
+    const anio = hoy.getFullYear();
+    const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+    const dia = String(hoy.getDate()).padStart(2, '0');
+    return `${anio}-${mes}-${dia}`;
+  }
+
+  function obtenerClaseCombustible(tipo) {
+    if (!tipo) return 'pill-fuel--diesel';
+    const t = String(tipo).toUpperCase();
+    if (t.includes('PREMIUM')) return 'pill-fuel--premium';
+    if (t.includes('REGULAR')) return 'pill-fuel--regular';
+    return 'pill-fuel--diesel';
+  }
+
+  function filtrarValesDebounce() {
+    clearTimeout(debounceBusqueda);
+    debounceBusqueda = setTimeout(() => {
+      renderizarTablaVales(Store.getState());
+    }, 120);
+  }
 
   function init() {
-    Store.subscribe(renderizarTodo);
+    Store.subscribe((state) => {
+      renderizarTodo(state);
+      // Mantener actualizado el número correlativo sugerido si no se está editando
+      const nValeInput = document.getElementById('input-nvale');
+      const editId = document.getElementById('edit-id').value;
+      if (nValeInput && !editId && (!nValeInput.value || nValeInput.value === '401')) {
+        nValeInput.value = Store.getSiguienteVale();
+      }
+    });
     Store.init();
 
     // Navegación de pestañas
@@ -25,10 +57,7 @@ const App = (() => {
       });
     });
 
-    // Configurar Dropzone para importar Excel
     configurarDropzone();
-
-    // Inicializar formulario
     inicializarFormularioVale();
   }
 
@@ -47,62 +76,73 @@ const App = (() => {
 
   function renderizarTodo(state) {
     actualizarHeader(state);
-    actualizarDatalistLugares();
+    actualizarDatalistsYSelects(state);
     renderizarDashboard(state);
     renderizarTablaVales(state);
     renderizarCobranza(state);
     renderizarTanques(state);
+    renderizarMovimientosDiarios(state);
     actualizarCamposConfiguracion(state);
   }
 
   function actualizarHeader(state) {
-    document.getElementById('header-empresa').textContent = state.empresa || "ESTACIÓN DE SERVICIOS";
-    document.getElementById('header-ruc').textContent = state.ruc ? `RUC: ${state.ruc}` : "RUC: No configurado";
-    document.getElementById('header-dir').textContent = state.direccion || "";
+    document.getElementById('header-empresa').textContent = state.empresa || "ESTACIÓN DE SERVICIOS SULLCAIRI";
+    document.getElementById('header-ruc').textContent = state.ruc ? `RUC: ${state.ruc}` : "RUC: 20608945123";
+    document.getElementById('header-dir').textContent = "jesus_de_lauricocha_huanuco";
   }
 
-  function actualizarDatalistLugares() {
-    const lugares = Store.getLugaresDisponibles();
-    const datalist = document.getElementById('datalist-lugares');
-    if (datalist) {
-      datalist.innerHTML = '';
-      lugares.forEach(l => {
+  function actualizarDatalistsYSelects(state) {
+    // Select de Clientes (Directo, amplio y sin desbordes)
+    const selectCli = document.getElementById('input-cliente');
+    if (selectCli && Array.isArray(state.clientes)) {
+      const valPrevio = selectCli.value;
+      selectCli.innerHTML = '<option value="">-- Seleccionar Cliente / Entidad --</option>';
+      state.clientes.forEach(c => {
         const opt = document.createElement('option');
-        opt.value = l;
-        datalist.appendChild(opt);
+        opt.value = c;
+        opt.textContent = c;
+        selectCli.appendChild(opt);
       });
+      const optOtro = document.createElement('option');
+      optOtro.value = "__NUEVO__";
+      optOtro.textContent = "+ Escribir otro cliente / entidad...";
+      selectCli.appendChild(optOtro);
+
+      if (valPrevio && valPrevio !== "__NUEVO__") {
+        selectCli.value = valPrevio;
+      }
     }
 
-    // Actualizar también el select de filtros por lugar
-    const filtroLugar = document.getElementById('filtro-lugar');
-    if (filtroLugar) {
-      const valorPrevio = filtroLugar.value;
-      filtroLugar.innerHTML = '<option value="">Todos los Lugares / Sedes</option>';
-      lugares.forEach(l => {
+    // Personal / Griferos
+    const selectGrifero = document.getElementById('input-grifero');
+    if (selectGrifero && Array.isArray(state.personal)) {
+      const valPrevio = selectGrifero.value;
+      selectGrifero.innerHTML = '';
+      state.personal.forEach(p => {
         const opt = document.createElement('option');
-        opt.value = l;
-        opt.textContent = l;
-        filtroLugar.appendChild(opt);
+        opt.value = p;
+        opt.textContent = p;
+        selectGrifero.appendChild(opt);
       });
-      filtroLugar.value = valorPrevio;
-    }
-
-    // Filtro en cuentas por cobrar
-    const filtroLugarCob = document.getElementById('filtro-lugar-cobranza');
-    if (filtroLugarCob) {
-      const valorPrevio = filtroLugarCob.value;
-      filtroLugarCob.innerHTML = '<option value="">Todos los Lugares / Sedes</option>';
-      lugares.forEach(l => {
-        const opt = document.createElement('option');
-        opt.value = l;
-        opt.textContent = l;
-        filtroLugarCob.appendChild(opt);
-      });
-      filtroLugarCob.value = valorPrevio;
+      if (valPrevio) selectGrifero.value = valPrevio;
     }
   }
 
-  // 1. DASHBOARD EJECUTIVO
+  function alCambiarCliente(sel) {
+    const customInput = document.getElementById('input-cliente-custom');
+    if (!customInput) return;
+    if (sel.value === '__NUEVO__') {
+      customInput.style.display = 'block';
+      customInput.setAttribute('required', 'required');
+      customInput.focus();
+    } else {
+      customInput.style.display = 'none';
+      customInput.removeAttribute('required');
+      customInput.value = '';
+    }
+  }
+
+  // 1. DASHBOARD
   function renderizarDashboard(state) {
     const m = Store.getMetricas();
 
@@ -115,9 +155,6 @@ const App = (() => {
     document.getElementById('dash-regular-gln').textContent = `${m.regularGln.toFixed(2)} Gln`;
     document.getElementById('dash-regular-sol').textContent = `S/ ${m.regularSoles.toFixed(2)}`;
 
-    document.getElementById('dash-glp-gln').textContent = `${m.glpGln.toFixed(2)} Gln`;
-    document.getElementById('dash-glp-sol').textContent = `S/ ${m.glpSoles.toFixed(2)}`;
-
     document.getElementById('dash-total-sol').textContent = `S/ ${m.totalSoles.toFixed(2)}`;
     document.getElementById('dash-total-gln').textContent = `${m.totalGln.toFixed(2)} Gln despachados`;
 
@@ -126,22 +163,23 @@ const App = (() => {
 
     document.getElementById('dash-anulados-count').textContent = m.anulados;
 
-    // Resumen por Lugares / Sedes
-    const tbodyLugares = document.getElementById('tbody-lugares-resumen');
-    if (tbodyLugares) {
-      tbodyLugares.innerHTML = '';
-      if (m.rankingLugares.length === 0) {
-        tbodyLugares.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:18px; color:#94a3b8;">Sin datos registrados</td></tr>';
+    // Resumen por Griferos / Personal de Turno
+    const tbodyGriferos = document.getElementById('tbody-griferos-resumen');
+    if (tbodyGriferos) {
+      tbodyGriferos.innerHTML = '';
+      const listaPersonal = m.rankingPersonal || [];
+      if (listaPersonal.length === 0) {
+        tbodyGriferos.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:18px; color:#94a3b8;">Sin despachos registrados</td></tr>';
       } else {
-        m.rankingLugares.forEach((lug, idx) => {
+        listaPersonal.forEach((p, idx) => {
           const tr = document.createElement('tr');
           tr.innerHTML = `
-            <td><strong>${idx + 1}. ${escapeHtml(lug.lugar)}</strong></td>
-            <td class="num-cell">${lug.vales}</td>
-            <td class="num-cell">${lug.galones.toFixed(2)} Gln</td>
-            <td class="num-cell" style="font-weight:700; color:var(--brand-800);">S/ ${lug.soles.toFixed(2)}</td>
+            <td><strong>${idx + 1}. ${escapeHtml(p.personal)}</strong></td>
+            <td class="num-cell">${p.vales}</td>
+            <td class="num-cell">${p.galones.toFixed(2)} Gln</td>
+            <td class="num-cell" style="font-weight:700; color:var(--brand-800);">S/ ${p.soles.toFixed(2)}</td>
           `;
-          tbodyLugares.appendChild(tr);
+          tbodyGriferos.appendChild(tr);
         });
       }
     }
@@ -150,11 +188,11 @@ const App = (() => {
     const tbodyTop = document.getElementById('tbody-top-clientes');
     if (tbodyTop) {
       tbodyTop.innerHTML = '';
-      const top5 = m.rankingClientes.slice(0, 5);
-      if (top5.length === 0) {
+      const topClientes = m.rankingClientes.slice(0, 8);
+      if (topClientes.length === 0) {
         tbodyTop.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:18px; color:#94a3b8;">Sin consumos registrados</td></tr>';
       } else {
-        top5.forEach((c, idx) => {
+        topClientes.forEach((c, idx) => {
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td>
@@ -171,7 +209,7 @@ const App = (() => {
     }
   }
 
-  // 2. TABLA DE VALES CON ORDENAMIENTO Y FILTROS
+  // 2. TABLA DE VALES
   function renderizarTablaVales(state) {
     const tbody = document.getElementById('tbody-vales');
     if (!tbody) return;
@@ -179,7 +217,6 @@ const App = (() => {
     let vales = [...state.vales];
     const filtroProd = document.getElementById('filtro-producto').value;
     const filtroEst = document.getElementById('filtro-estado').value;
-    const filtroLug = document.getElementById('filtro-lugar') ? document.getElementById('filtro-lugar').value : '';
     const q = normalizarBusqueda(document.getElementById('search-input').value);
 
     tbody.innerHTML = '';
@@ -189,7 +226,7 @@ const App = (() => {
         <tr>
           <td colspan="15" style="text-align:center; padding: 45px 20px; color:#64748b;">
             <h4 style="font-size:1.05rem; color:#1e293b; margin-bottom:6px;">No hay vales registrados</h4>
-            <p style="font-size:0.84rem; max-width:420px; margin:0 auto;">Utilice el formulario superior para añadir registros o use "Subir Excel" para cargar su archivo masivo.</p>
+            <p style="font-size:0.84rem; max-width:420px; margin:0 auto;">Utilice el formulario superior o haga clic en "Subir Excel" para cargar sus vales desde una hoja de cálculo.</p>
           </td>
         </tr>
       `;
@@ -202,7 +239,6 @@ const App = (() => {
     vales = vales.filter(v => {
       if (filtroProd && v.producto !== filtroProd) return false;
       if (filtroEst && v.estado !== filtroEst) return false;
-      if (filtroLug && (v.lugar || 'Principal') !== filtroLug) return false;
       if (q) {
         const rowText = normalizarBusqueda(`${v.cliente} ${v.lugar} ${v.placa} ${v.n_vale} ${v.conductor} ${v.telefono} ${v.grifero}`);
         if (!rowText.includes(q)) return false;
@@ -232,10 +268,7 @@ const App = (() => {
         sumSoles += Number(v.total) || 0;
       }
 
-      let fuelClass = 'pill-fuel--diesel';
-      if (v.producto === 'PREMIUM') fuelClass = 'pill-fuel--premium';
-      else if (v.producto === 'REGULAR') fuelClass = 'pill-fuel--regular';
-      else if (v.producto === 'GLP') fuelClass = 'pill-fuel--glp';
+      const fuelClass = obtenerClaseCombustible(v.producto);
 
       let badgeClass = 'pill-status--pending';
       let badgeLabel = 'EMITIDO';
@@ -246,7 +279,7 @@ const App = (() => {
       let waButton = `<span style="color:#94a3b8">-</span>`;
       if (telLimpio) {
         waButton = `
-          <button type="button" class="btn btn--whatsapp btn--sm" style="padding:2px 7px; font-size:0.73rem;" onclick="App.abrirModalWhatsApp(${v.id})" title="WhatsApp: ${escapeHtml(v.telefono)}">
+          <button type="button" class="btn btn--whatsapp btn--sm" style="padding:2px 7px; font-size:0.73rem;" onclick="App.abrirModalWhatsApp(${v.id})" title="Enviar WhatsApp a ${escapeHtml(v.telefono)}">
             WA: ${escapeHtml(v.telefono)}
           </button>
         `;
@@ -260,7 +293,7 @@ const App = (() => {
         <td>${formatearFecha(v.fecha)}</td>
         <td><strong style="font-family:'JetBrains Mono'; font-size:0.88rem;">#${escapeHtml(v.n_vale)}</strong></td>
         <td><strong>${escapeHtml(v.cliente)}</strong></td>
-        <td><span class="pill-lugar">${escapeHtml(v.lugar || 'Principal')}</span></td>
+        <td><span class="pill-lugar">${escapeHtml(v.lugar || 'Sede Jesús')}</span></td>
         <td>${waButton}</td>
         <td>${v.placa !== '-' ? `<span class="plate-mono">${escapeHtml(v.placa)}</span>` : '-'}</td>
         <td>${escapeHtml(v.conductor)}</td>
@@ -308,14 +341,9 @@ const App = (() => {
     if (!tbody) return;
 
     const m = Store.getMetricas();
-    const filtroLug = document.getElementById('filtro-lugar-cobranza') ? document.getElementById('filtro-lugar-cobranza').value : '';
-
     tbody.innerHTML = '';
 
     let lista = m.rankingClientes;
-    if (filtroLug) {
-      lista = lista.filter(c => (c.lugar || 'Principal') === filtroLug);
-    }
 
     if (lista.length === 0) {
       tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:#94a3b8;">No hay clientes en este criterio.</td></tr>';
@@ -330,7 +358,7 @@ const App = (() => {
         <td style="color:#64748b;">${idx + 1}</td>
         <td>
           <strong>${escapeHtml(c.cliente)}</strong>
-          <div style="font-size:0.72rem; color:#64748b;">Sede: ${escapeHtml(c.lugar || 'Principal')}</div>
+          <div style="font-size:0.72rem; color:#64748b;">Sede: ${escapeHtml(c.lugar || 'Sede Jesús')}</div>
         </td>
         <td>${c.telefono ? `<span class="pill-status" style="background:#e0f2fe; color:#0369a1;">${escapeHtml(c.telefono)}</span>` : '-'}</td>
         <td class="num-cell"><strong style="color:#d97706;">${c.valesPendientes}</strong> / ${c.valesTotales}</td>
@@ -350,35 +378,231 @@ const App = (() => {
     });
   }
 
-  // 4. TANQUES
+  // 4. CONTROL DE TANQUES CON NIVELES DE ALERTA DE LA HOJA
   function renderizarTanques(state) {
     const container = document.getElementById('tanques-container');
     if (!container) return;
 
     container.innerHTML = '';
+    let totalCapacidad = 0;
+    let totalStock = 0;
+
     Object.entries(state.tanques).forEach(([combustible, t]) => {
+      totalCapacidad += t.capacidad;
+      totalStock += t.stock;
+
       const pct = Math.min(100, Math.round((t.stock / t.capacidad) * 100));
+
+      // Niveles de alerta: Alerta naranja a 500 Gln, Alerta roja a 250 Gln
+      let alertaBadge = '<span class="pill-status" style="background:#dcfce7; color:#15803d;">Nivel Normal</span>';
       let colorBar = '#059669';
-      if (pct < 25) colorBar = '#dc2626';
-      else if (pct < 50) colorBar = '#d97706';
+
+      if (t.stock <= t.alerta_roja) {
+        alertaBadge = '<span class="pill-status" style="background:#fee2e2; color:#b91c1c; font-weight:800;">ALERTA ROJA (≤250 Gln)</span>';
+        colorBar = '#dc2626';
+      } else if (t.stock <= t.alerta_naranja) {
+        alertaBadge = '<span class="pill-status" style="background:#fef3c7; color:#b45309; font-weight:800;">ALERTA NARANJA (≤500 Gln)</span>';
+        colorBar = '#d97706';
+      }
 
       const div = document.createElement('div');
       div.className = 'kpi-box';
       div.innerHTML = `
         <div class="kpi-box__head">
-          <span style="font-size:0.85rem; font-weight:800; color:var(--slate-800);">${escapeHtml(combustible)}</span>
-          <span class="pill-status" style="background:#f1f5f9; color:#334155;">${pct}% Capacidad</span>
+          <span style="font-size:0.9rem; font-weight:800; color:var(--slate-900);">${escapeHtml(combustible)}</span>
+          ${alertaBadge}
         </div>
-        <div style="height:14px; background:#e2e8f0; border-radius:99px; overflow:hidden; margin:10px 0;">
-          <div style="width:${pct}%; height:100%; background:${colorBar}; transition:width 0.5s;"></div>
+        <div style="font-size:1.6rem; font-weight:800; font-family:'JetBrains Mono'; color:var(--slate-900); margin:4px 0;">
+          ${t.stock.toLocaleString()} <span style="font-size:0.85rem; color:#64748b; font-weight:600;">/ ${t.capacidad.toLocaleString()} Gln</span>
         </div>
-        <div style="display:flex; justify-content:space-between; font-size:0.78rem; color:#64748b;">
-          <span>Stock: <strong>${t.stock.toLocaleString()} Gln</strong></span>
-          <span>Máx: <strong>${t.capacidad.toLocaleString()} Gln</strong></span>
+        <div style="height:14px; background:#e2e8f0; border-radius:99px; overflow:hidden; margin:8px 0;">
+          <div style="width:${pct}%; height:100%; background:${colorBar}; transition:width 0.6s ease;"></div>
         </div>
+        <div style="display:flex; justify-content:space-between; font-size:0.76rem; color:#64748b;">
+          <span>Porcentaje: <strong>${pct}%</strong></span>
+          <span>Alertas: <strong>500 Naranja / 250 Rojo</strong></span>
+        </div>
+        <button type="button" class="btn btn--outline btn--sm" style="margin-top:12px; width:100%;" onclick="App.abrirModalModificarTanque('${escapeHtml(combustible)}')">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:13px; height:13px; display:inline-block; vertical-align:middle; margin-right:4px;"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+          Modificar Galones (Varillaje)
+        </button>
       `;
       container.appendChild(div);
     });
+
+    // Tarjeta de capacidad total acumulada (6000 Gln)
+    const resumenDiv = document.createElement('div');
+    resumenDiv.className = 'kpi-box';
+    resumenDiv.style.borderColor = 'var(--brand-accent)';
+    const pctTotal = Math.round((totalStock / totalCapacidad) * 100);
+
+    resumenDiv.innerHTML = `
+      <div class="kpi-box__head">
+        <span style="font-size:0.9rem; font-weight:800; color:var(--brand-800);">TOTAL CAPACIDAD TANQUES</span>
+        <span class="pill-status pill-status--billed">${pctTotal}% Lleno</span>
+      </div>
+      <div style="font-size:1.6rem; font-weight:800; font-family:'JetBrains Mono'; color:var(--brand-accent); margin:4px 0;">
+        ${totalStock.toLocaleString()} <span style="font-size:0.85rem; color:#64748b; font-weight:600;">/ ${totalCapacidad.toLocaleString()} Gln Total</span>
+      </div>
+      <div style="height:14px; background:#e2e8f0; border-radius:99px; overflow:hidden; margin:8px 0;">
+        <div style="width:${pctTotal}%; height:100%; background:var(--brand-accent); transition:width 0.6s ease;"></div>
+      </div>
+      <div style="font-size:0.76rem; color:#64748b; margin-bottom:10px;">
+        Capacidad sumada de tanques: <strong>Diesel (3,000) + Premium (1,500) + Regular (1,500) = 6,000 GL.</strong>
+      </div>
+      <button type="button" class="btn btn--accent btn--sm" style="width:100%;" onclick="App.abrirModalModificarTanque()">
+        Ajustar Cualquier Tanque
+      </button>
+    `;
+    container.appendChild(resumenDiv);
+  }
+
+  // 5. PANEL DE REGISTRO DIARIO DE COMBUSTIBLE (DÍA, FECHA, AÑO, CANTIDAD Y TIPO)
+  function renderizarMovimientosDiarios(state) {
+    const tbody = document.getElementById('tbody-movimientos-diarios');
+    if (!tbody) return;
+
+    const filtroTipo = document.getElementById('filtro-mov-tipo') ? document.getElementById('filtro-mov-tipo').value : '';
+    let movs = Array.isArray(state.movimientos_tanque) ? [...state.movimientos_tanque] : [];
+
+    tbody.innerHTML = '';
+
+    if (filtroTipo) {
+      movs = movs.filter(m => m.tipo === filtroTipo);
+    }
+
+    if (movs.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="9" style="text-align:center; padding:35px 20px; color:#64748b;">
+            <div style="font-weight:700; color:#1e293b; margin-bottom:4px;">No hay movimientos registrados en el panel</div>
+            <div style="font-size:0.82rem;">Al despachar vales o modificar la cantidad de galones en tanques, los movimientos se registrarán automáticamente aquí con su día, fecha y año.</div>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    movs.forEach((m, idx) => {
+      const fuelClass = obtenerClaseCombustible(m.tipo);
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="color:#64748b; font-size:0.75rem;">${idx + 1}</td>
+        <td><strong style="color:var(--slate-800);">${escapeHtml(m.dia || '-')}</strong></td>
+        <td><span style="font-family:'JetBrains Mono'; font-weight:700; font-size:0.86rem; color:var(--brand-800);">${escapeHtml(m.fecha || '-')}</span></td>
+        <td><span style="font-family:'JetBrains Mono'; font-size:0.84rem; color:var(--slate-600);">${escapeHtml(String(m.anio || '2026'))}</span></td>
+        <td><span class="pill-fuel ${fuelClass}">${escapeHtml(m.tipo)}</span></td>
+        <td class="num-cell" style="font-weight:800; color:var(--brand-accent); font-size:0.92rem;">
+          ${Number(m.cantidad || 0).toFixed(2)} Gln
+        </td>
+        <td>${escapeHtml(m.operacion || 'Ajuste de Combustible')}</td>
+        <td>${escapeHtml(m.cliente || '-')}</td>
+        <td class="num-cell" style="font-weight:700; color:var(--slate-900);">
+          ${m.stock_resultante !== undefined ? Number(m.stock_resultante).toFixed(2) + ' Gln' : '-'}
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // 6. GESTIÓN DEL MODAL DE MODIFICACIÓN DE TANQUES (VARILLAJE)
+  function abrirModalModificarTanque(tipoCombustible) {
+    const modal = document.getElementById('modal-ajuste-tanque');
+    if (!modal) return;
+
+    const selectTipo = document.getElementById('ajuste-tipo-combustible');
+    if (tipoCombustible && selectTipo) {
+      selectTipo.value = tipoCombustible;
+    }
+
+    document.getElementById('ajuste-fecha').value = obtenerFechaHoyISO();
+    document.getElementById('ajuste-detalle').value = '';
+
+    actualizarInfoTanqueEnModal();
+    modal.classList.add('active');
+  }
+
+  function cerrarModalModificarTanque() {
+    const modal = document.getElementById('modal-ajuste-tanque');
+    if (modal) modal.classList.remove('active');
+  }
+
+  function actualizarInfoTanqueEnModal() {
+    const state = Store.getState();
+    const tipo = document.getElementById('ajuste-tipo-combustible').value;
+    const t = state.tanques[tipo];
+    if (t) {
+      document.getElementById('ajuste-stock-actual').textContent = `${Number(t.stock).toFixed(2)} Gln`;
+      document.getElementById('ajuste-capacidad-max').textContent = `${Number(t.capacidad).toLocaleString()} Gln`;
+      document.getElementById('ajuste-nueva-cantidad').value = Number(t.stock).toFixed(2);
+    }
+  }
+
+  async function guardarAjusteTanque(e) {
+    e.preventDefault();
+    const tipo = document.getElementById('ajuste-tipo-combustible').value;
+    const nuevaCantidad = parseFloat(document.getElementById('ajuste-nueva-cantidad').value);
+    const fecha = document.getElementById('ajuste-fecha').value;
+    const motivoBase = document.getElementById('ajuste-motivo').value;
+    const detalle = document.getElementById('ajuste-detalle').value.trim();
+
+    if (isNaN(nuevaCantidad) || nuevaCantidad < 0) {
+      alert("Por favor ingrese una cantidad válida en galones.");
+      return;
+    }
+
+    const state = Store.getState();
+    const t = state.tanques[tipo];
+    if (t && nuevaCantidad > t.capacidad) {
+      if (!confirm(`La cantidad ingresada (${nuevaCantidad} Gln) supera la capacidad máxima del tanque (${t.capacidad} Gln). ¿Desea continuar de todos modos?`)) {
+        return;
+      }
+    }
+
+    const motivoCompleto = detalle ? `${motivoBase} - ${detalle}` : motivoBase;
+
+    await Store.modificarStockTanque(tipo, nuevaCantidad, motivoCompleto, fecha);
+    cerrarModalModificarTanque();
+    mostrarToast(`Stock de ${tipo} actualizado a ${nuevaCantidad.toFixed(2)} Gln`);
+    cambiarPestana('tanques');
+  }
+
+  function exportarMovimientosExcel() {
+    const state = Store.getState();
+    const movs = state.movimientos_tanque;
+    if (!movs || movs.length === 0) {
+      alert("No hay registros en el panel diario para exportar.");
+      return;
+    }
+
+    const fechaHoy = new Date().toISOString().split('T')[0];
+    const filename = `Registro_Diario_Combustible_${fechaHoy}.xlsx`;
+
+    const filas = movs.map((m, i) => ({
+      "ITEM": i + 1,
+      "DÍA": m.dia || "",
+      "FECHA (DD/MM)": m.fecha || "",
+      "AÑO": m.anio || 2026,
+      "TIPO DE COMBUSTIBLE": m.tipo || "",
+      "CANTIDAD (GLN)": Number(m.cantidad || 0).toFixed(2),
+      "OPERACIÓN / DETALLE": m.operacion || "",
+      "CLIENTE / REFERENCIA": m.cliente || "",
+      "STOCK RESULTANTE (GLN)": m.stock_resultante !== undefined ? Number(m.stock_resultante).toFixed(2) : ""
+    }));
+
+    if (typeof XLSX !== 'undefined') {
+      const ws = XLSX.utils.json_to_sheet(filas);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Panel_Diario");
+      ws['!cols'] = [
+        { wch: 6 }, { wch: 12 }, { wch: 14 }, { wch: 8 },
+        { wch: 20 }, { wch: 16 }, { wch: 32 }, { wch: 25 }, { wch: 22 }
+      ];
+      XLSX.writeFile(wb, filename);
+    } else {
+      Exporter.exportarCSV(filas, filename.replace('.xlsx', '.csv'));
+    }
   }
 
   function actualizarCamposConfiguracion(state) {
@@ -388,14 +612,13 @@ const App = (() => {
     set('cfg-direccion', state.direccion);
     set('cfg-telefono', state.telefono);
     if (state.precios) {
-      set('cfg-p-diesel', state.precios["DIESEL B5"]);
-      set('cfg-p-premium', state.precios["PREMIUM"]);
-      set('cfg-p-regular', state.precios["REGULAR"]);
-      set('cfg-p-glp', state.precios["GLP"]);
+      set('cfg-p-diesel', state.precios["DIESEL B5-S50"]);
+      set('cfg-p-premium', state.precios["GASOHOL PREMIUM"]);
+      set('cfg-p-regular', state.precios["GASOHOL REGULAR"]);
     }
   }
 
-  // 5. IMPORTADOR DE EXCEL (SUBIR EXCEL)
+  // 5. IMPORTADOR DE EXCEL CON VISUALIZADOR COMPLETO
   function configurarDropzone() {
     const dropzone = document.getElementById('dropzone-excel');
     const input = document.getElementById('input-archivo-excel');
@@ -431,6 +654,7 @@ const App = (() => {
   function abrirModalImportarExcel() {
     valesParaImportar = [];
     document.getElementById('import-status-box').style.display = 'none';
+    document.getElementById('import-preview-wrapper').style.display = 'none';
     document.getElementById('btn-confirmar-importar').disabled = true;
     document.getElementById('input-archivo-excel').value = '';
     document.getElementById('modal-importar-excel').classList.add('active');
@@ -442,50 +666,88 @@ const App = (() => {
 
   function procesarArchivoSubido(file) {
     const statusBox = document.getElementById('import-status-box');
+    const previewWrap = document.getElementById('import-preview-wrapper');
+    const previewBody = document.getElementById('import-preview-body');
     const btnConfirmar = document.getElementById('btn-confirmar-importar');
 
     statusBox.style.display = 'block';
-    statusBox.innerHTML = '<div style="color:#64748b;">Analizando estructura del archivo...</div>';
+    statusBox.innerHTML = '<div style="color:#64748b;">Leyendo y analizando archivo Excel...</div>';
+    previewWrap.style.display = 'none';
+    btnConfirmar.disabled = true;
 
     Exporter.procesarArchivoExcel(file, (res) => {
       if (!res.ok) {
         statusBox.innerHTML = `<div style="color:#b91c1c; font-weight:700;">Error: ${escapeHtml(res.error)}</div>`;
-        btnConfirmar.disabled = true;
         return;
       }
 
       valesParaImportar = res.valesValidos;
-      btnConfirmar.disabled = (valesParaImportar.length === 0);
 
+      if (valesParaImportar.length === 0) {
+        statusBox.innerHTML = '<div style="color:#b91c1c; font-weight:700;">No se encontraron filas con N° de Vale válido en el archivo.</div>';
+        return;
+      }
+
+      btnConfirmar.disabled = false;
       statusBox.innerHTML = `
         <div style="background:#f0fdf4; border:1px solid #bbf7d0; padding:12px; border-radius:6px; color:#15803d; font-size:0.85rem;">
-          <strong>Archivo analizado correctamente:</strong>
-          <div>Se encontraron <strong>${valesParaImportar.length} vales válidos</strong> listos para ser importados.</div>
-          ${res.errores.length > 0 ? `<div style="color:#d97706; margin-top:4px;">Aviso: ${res.errores.length} filas con error fueron omitidas.</div>` : ''}
+          <strong>Archivo procesado con éxito:</strong>
+          <div>Se extrajeron <strong>${valesParaImportar.length} vales</strong> correctamente estructurados.</div>
+          ${res.errores.length > 0 ? `<div style="color:#d97706; margin-top:4px;">Aviso: ${res.errores.length} filas incompletas fueron omitidas.</div>` : ''}
         </div>
       `;
+
+      // Renderizar tabla de previsualización completa
+      previewBody.innerHTML = '';
+      valesParaImportar.forEach((v, idx) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${idx + 1}</td>
+          <td>${formatearFecha(v.fecha)}</td>
+          <td><strong>#${v.n_vale}</strong></td>
+          <td><strong>${escapeHtml(v.cliente)}</strong></td>
+          <td>${escapeHtml(v.lugar)}</td>
+          <td>${escapeHtml(v.placa)}</td>
+          <td>${escapeHtml(v.producto)}</td>
+          <td class="num-cell">${Number(v.cantidad).toFixed(2)} Gln</td>
+          <td class="num-cell">S/ ${Number(v.total).toFixed(2)}</td>
+          <td>${escapeHtml(v.grifero)}</td>
+          <td><span class="pill-status pill-status--${v.estado === 'FACTURADO' ? 'billed' : (v.estado === 'ANULADO' ? 'void' : 'pending')}">${v.estado}</span></td>
+        `;
+        previewBody.appendChild(tr);
+      });
+
+      previewWrap.style.display = 'block';
     });
   }
 
   async function ejecutarImportacion() {
     if (valesParaImportar.length === 0) return;
+    const btn = document.getElementById('btn-confirmar-importar');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Guardando en Base de Datos...';
+    }
     const modoReemplazar = document.getElementById('check-reemplazar-import').checked;
 
-    await Store.importarValesMasivos(valesParaImportar, modoReemplazar);
+    const totalInsertados = await Store.importarValesMasivos(valesParaImportar, modoReemplazar);
     cerrarModalImportarExcel();
-    mostrarToast(`Se importaron ${valesParaImportar.length} vales con éxito`);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Confirmar e Importar Datos';
+    }
+    mostrarToast(`Se importaron y guardaron ${totalInsertados} registros en la base de datos.`);
     cambiarPestana('vales');
   }
 
-  // 6. GESTIÓN DEL FORMULARIO
+  // 6. FORMULARIO DE VALES
   function inicializarFormularioVale() {
-    const hoy = new Date();
-    const anio = hoy.getFullYear();
-    const mes = String(hoy.getMonth() + 1).padStart(2, '0');
-    const dia = String(hoy.getDate()).padStart(2, '0');
-    document.getElementById('input-fecha').value = `${anio}-${mes}-${dia}`;
+    document.getElementById('input-fecha').value = obtenerFechaHoyISO();
     actualizarPrecioSegunCombustible();
-    document.getElementById('input-nvale').value = Store.getSiguienteVale();
+    const nValeInput = document.getElementById('input-nvale');
+    if (nValeInput && !document.getElementById('edit-id').value) {
+      nValeInput.value = Store.getSiguienteVale();
+    }
   }
 
   function actualizarPrecioSegunCombustible() {
@@ -523,10 +785,16 @@ const App = (() => {
 
     const editId = document.getElementById('edit-id').value;
     const fecha = document.getElementById('input-fecha').value;
-    const n_vale = parseInt(document.getElementById('input-nvale').value);
+    const n_vale = parseInt(document.getElementById('input-nvale').value, 10);
     const turno = document.getElementById('input-turno').value;
-    const cliente = document.getElementById('input-cliente').value.trim() || "-";
-    const lugar = document.getElementById('input-lugar').value.trim() || "Principal";
+    let cliente = document.getElementById('input-cliente').value.trim();
+    if (cliente === '__NUEVO__') {
+      const customEl = document.getElementById('input-cliente-custom');
+      cliente = customEl ? customEl.value.trim() : "";
+    }
+    if (!cliente) cliente = "-";
+
+    const lugar = "jesus_de_lauricocha_huanuco";
     const telefono = document.getElementById('input-telefono').value.trim();
     const placa = document.getElementById('input-placa').value.trim().toUpperCase() || "-";
     const conductor = document.getElementById('input-conductor').value.trim() || "-";
@@ -534,13 +802,13 @@ const App = (() => {
     const cantidad = parseFloat(document.getElementById('input-cantidad').value) || 0;
     const precio = parseFloat(document.getElementById('input-precio').value) || 0;
     const total = Math.round(cantidad * precio * 100) / 100;
-    const grifero = document.getElementById('input-grifero').value.trim() || "Isla 01";
+    const grifero = document.getElementById('input-grifero').value.trim() || "YANET";
     const estado = document.getElementById('input-estado').value;
     const observacion = document.getElementById('input-obs').value.trim();
     const autoWA = document.getElementById('check-auto-wa').checked;
 
     const state = Store.getState();
-    const existeDuplicado = state.vales.some(v => v.n_vale === n_vale && String(v.id) !== String(editId));
+    const existeDuplicado = state.vales.some(v => Number(v.n_vale) === n_vale && String(v.id) !== String(editId));
     if (existeDuplicado) {
       alert(`El N° de Vale #${n_vale} ya se encuentra registrado.`);
       document.getElementById('input-nvale').focus();
@@ -558,7 +826,7 @@ const App = (() => {
       mostrarToast(`Vale #${n_vale} actualizado`);
     } else {
       await Store.agregarVale(valeData);
-      mostrarToast(`Vale #${n_vale} registrado`);
+      mostrarToast(`Vale #${n_vale} registrado con éxito`);
     }
 
     limpiarFormulario();
@@ -584,8 +852,23 @@ const App = (() => {
     document.getElementById('input-fecha').value = v.fecha;
     document.getElementById('input-nvale').value = v.n_vale;
     document.getElementById('input-turno').value = v.turno;
-    document.getElementById('input-cliente').value = v.cliente === '-' ? '' : v.cliente;
-    document.getElementById('input-lugar').value = v.lugar || '';
+    
+    const selCli = document.getElementById('input-cliente');
+    const custom = document.getElementById('input-cliente-custom');
+    if (selCli) {
+      if (state.clientes.includes(v.cliente)) {
+        selCli.value = v.cliente;
+        if (custom) custom.style.display = 'none';
+      } else {
+        selCli.value = '__NUEVO__';
+        if (custom) {
+          custom.style.display = 'block';
+          custom.value = v.cliente === '-' ? '' : v.cliente;
+        }
+      }
+    }
+
+    document.getElementById('input-lugar').value = "jesus_de_lauricocha_huanuco";
     document.getElementById('input-telefono').value = v.telefono || "";
     document.getElementById('input-placa').value = v.placa === '-' ? '' : v.placa;
     document.getElementById('input-conductor').value = v.conductor === '-' ? '' : v.conductor;
@@ -605,9 +888,18 @@ const App = (() => {
   function limpiarFormulario() {
     document.getElementById('edit-id').value = "";
     document.getElementById('form-vale-title').textContent = "Registrar Nuevo Vale de Combustible";
-    document.getElementById('btn-guardar-vale').textContent = "Registrar Vale";
-    document.getElementById('input-cliente').value = "";
-    document.getElementById('input-lugar').value = "";
+    document.getElementById('btn-guardar-vale').textContent = "Guardar Vale";
+    
+    const selCli = document.getElementById('input-cliente');
+    if (selCli) selCli.value = "";
+    const custom = document.getElementById('input-cliente-custom');
+    if (custom) {
+      custom.style.display = 'none';
+      custom.value = "";
+      custom.removeAttribute('required');
+    }
+
+    document.getElementById('input-lugar').value = "jesus_de_lauricocha_huanuco";
     document.getElementById('input-telefono').value = "";
     document.getElementById('input-placa').value = "";
     document.getElementById('input-conductor').value = "";
@@ -636,13 +928,13 @@ const App = (() => {
     const v = state.vales.find(item => item.id === id);
     if (!v) return;
 
-    if (confirm(`¿Confirma eliminar el Vale #${v.n_vale}?`)) {
+    if (confirm(`¿Confirma eliminar definitivamente el Vale #${v.n_vale}?`)) {
       await Store.eliminarVale(id);
       mostrarToast("Vale eliminado");
     }
   }
 
-  // WHATSAPP
+  // 7. WHATSAPP
   function normalizarTelefono(t) {
     if (!t) return "";
     let clean = String(t).replace(/[^0-9]/g, '');
@@ -653,16 +945,17 @@ const App = (() => {
   function generarMensajeDespacho(v) {
     const state = Store.getState();
     return (
-      `*${state.empresa} - CONSTANCIA DE DESPACHO*\n\n` +
-      `Estimado(a) *${v.cliente}* (Sede: ${v.lugar || 'Principal'}), confirmamos el vale registrado:\n\n` +
+      `*${state.empresa} - CONSTANCIA DE VALE*\n\n` +
+      `Estimado(a) *${v.cliente}* (Sede: ${v.lugar || 'Sede Jesús'}), confirmamos el despacho registrado:\n\n` +
       `*Vale:* #${v.n_vale}\n` +
       `*Fecha:* ${formatearFecha(v.fecha)} (${v.turno})\n` +
-      `*Placa:* ${v.placa}\n` +
+      `*Vehículo / Placa:* ${v.placa}\n` +
       `*Conductor:* ${v.conductor}\n` +
       `*Combustible:* ${v.producto}\n` +
       `*Cantidad:* ${Number(v.cantidad).toFixed(2)} Galones\n` +
-      `*P.U.:* S/ ${Number(v.precio).toFixed(2)}\n` +
-      `*Total:* S/ ${Number(v.total).toFixed(2)}\n` +
+      `*Precio Unitario:* S/ ${Number(v.precio).toFixed(2)}\n` +
+      `*Total a Pagar:* S/ ${Number(v.total).toFixed(2)}\n` +
+      `*Personal Despachador:* ${v.grifero}\n` +
       `*Estado:* ${v.estado}\n\n` +
       `Agradecemos su preferencia.`
     );
@@ -675,12 +968,12 @@ const App = (() => {
 
     const tel = normalizarTelefono(v.telefono);
     if (!tel) {
-      alert("Este vale no cuenta con un número válido.");
+      alert("Este vale no cuenta con un número de teléfono válido.");
       return;
     }
 
     valeSeleccionadoWA = v;
-    document.getElementById('modal-wa-dest').value = `${v.telefono} (${v.cliente} - ${v.lugar || 'Principal'})`;
+    document.getElementById('modal-wa-dest').value = `${v.telefono} (${v.cliente} - ${v.lugar || 'Sede Jesús'})`;
     document.getElementById('modal-wa-tipo').value = (v.estado === 'PENDIENTE') ? 'cobro' : 'despacho';
     actualizarPreviewWA();
     document.getElementById('modal-wa').classList.add('active');
@@ -696,10 +989,10 @@ const App = (() => {
     if (tipo === 'cobro') {
       txt = (
         `*ESTADO DE CUENTA - ${state.empresa}*\n\n` +
-        `Estimado(a) *${v.cliente}* (${v.lugar || 'Sede Principal'}),\n` +
-        `Le recordamos que mantiene pendiente el Vale N° #${v.n_vale} por el importe de *S/ ${Number(v.total).toFixed(2)}* ` +
+        `Estimado(a) *${v.cliente}* (${v.lugar || 'Sede Jesús'}),\n` +
+        `Le recordamos que mantiene pendiente de liquidación el Vale N° #${v.n_vale} por un importe de *S/ ${Number(v.total).toFixed(2)}* ` +
         `(${v.cantidad} Gln de ${v.producto}, Placa: ${v.placa}).\n\n` +
-        `Agradeceremos coordinar la cancelación. Saludos cordiales.`
+        `Agradeceremos coordinar la cancelación correspondiente. Saludos cordiales.`
       );
     } else {
       txt = generarMensajeDespacho(v);
@@ -721,8 +1014,8 @@ const App = (() => {
       `*ESTADO DE CUENTA - ${state.empresa}*\n\n` +
       `Estimado(a) *${cliente}*,\n` +
       `Le informamos que cuenta con *${cantVales} vales pendientes de pago* ` +
-      `por un total de *S/ ${totalDeuda.toFixed(2)}*.\n\n` +
-      `Agradeceremos coordinar la liquidación correspondiente. Saludos cordiales.`
+      `por un importe total acumulado de *S/ ${totalDeuda.toFixed(2)}*.\n\n` +
+      `Agradeceremos coordinar la liquidación. Saludos cordiales.`
     );
     abrirEnlaceWASeguro(tel, msg);
   }
@@ -738,33 +1031,32 @@ const App = (() => {
     valeSeleccionadoWA = null;
   }
 
-  // CONFIGURACIÓN Y CONTROLES
+  // 8. CONFIGURACIÓN
   async function guardarConfiguracionEmpresa(e) {
     e.preventDefault();
     const emp = document.getElementById('cfg-empresa').value.trim();
     const ruc = document.getElementById('cfg-ruc').value.trim();
     const dir = document.getElementById('cfg-direccion').value.trim();
     const precios = {
-      "DIESEL B5": parseFloat(document.getElementById('cfg-p-diesel').value) || 16.80,
-      "PREMIUM": parseFloat(document.getElementById('cfg-p-premium').value) || 19.50,
-      "REGULAR": parseFloat(document.getElementById('cfg-p-regular').value) || 17.20,
-      "GLP": parseFloat(document.getElementById('cfg-p-glp').value) || 8.50
+      "DIESEL B5-S50": parseFloat(document.getElementById('cfg-p-diesel').value) || 16.80,
+      "GASOHOL PREMIUM": parseFloat(document.getElementById('cfg-p-premium').value) || 19.50,
+      "GASOHOL REGULAR": parseFloat(document.getElementById('cfg-p-regular').value) || 17.20
     };
     await Store.actualizarConfiguracion(emp, ruc, dir, precios);
     actualizarPrecioSegunCombustible();
-    mostrarToast("Configuración guardada correctamente");
+    mostrarToast("Tarifas oficiales guardadas");
   }
 
   async function cargarDemostracion() {
-    if (confirm("¿Desea cargar los datos de demostración?")) {
+    if (confirm("¿Desea restaurar los datos de la Estación Jesús con los tanques, clientes y personal oficiales?")) {
       await Store.cargarDatosDemo();
-      mostrarToast("Datos cargados correctamente");
+      mostrarToast("Datos restaurados correctamente");
       cambiarPestana('vales');
     }
   }
 
   async function limpiarTodo() {
-    if (confirm("¿Desea vaciar los registros de la base de datos?")) {
+    if (confirm("¿Confirma vaciar los registros de vales de la base de datos?")) {
       await Store.limpiarBaseDatos();
       mostrarToast("Sistema limpio y vacío");
     }
@@ -799,6 +1091,7 @@ const App = (() => {
     init,
     cambiarPestana,
     ordenarPor,
+    alCambiarCliente,
     guardarVale,
     editarVale,
     anularVale,
@@ -815,6 +1108,14 @@ const App = (() => {
     enviarWhatsAppDesdeModal,
     enviarCobranzaCliente,
     cerrarModalWA,
+    renderizarMovimientosDiarios,
+    abrirModalModificarTanque,
+    cerrarModalModificarTanque,
+    actualizarInfoTanqueEnModal,
+    guardarAjusteTanque,
+    exportarMovimientosExcel,
+    filtrarValesDebounce,
+    renderizarTablaVales,
     guardarConfiguracionEmpresa,
     cargarDemostracion,
     limpiarTodo

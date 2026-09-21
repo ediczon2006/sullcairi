@@ -1,53 +1,112 @@
 /**
  * ============================================================================
- * STORE CENTRALIZADO Y MOTOR DE CÁLCULO EMPRESARIAL (js/store.js)
- * Versión 2.1 - Soporte para Sedes/Lugares e Importación Masiva de Excel
+ * STORE CENTRALIZADO - ESTACIÓN DE SERVICIOS JESÚS
+ * Gestión de 3 Tanques (Sin GLP) y Panel de Movimientos Diarios (Día, Fecha, Año, Cantidad, Tipo)
  * ============================================================================
  */
 
 const Store = (() => {
-  // DATOS EMPRESARIALES DE REFERENCIA CON ZONAS / LUGARES
-  const DEMO_VALES = [
-    { id: 101, fecha: "2026-08-17", n_vale: 377, turno: "T1 (Mañana)", cliente: "Transportes Andina S.A.C.", lugar: "Sede Lima", telefono: "987654321", placa: "A1B-823", conductor: "Carlos Rojas", producto: "PREMIUM", cantidad: 8.0, precio: 19.50, total: 156.00, grifero: "Juan P.", estado: "FACTURADO", observacion: "F001-00452" },
-    { id: 102, fecha: "2026-08-17", n_vale: 378, turno: "T1 (Mañana)", cliente: "Constructora del Sur", lugar: "Cantera Sur", telefono: "951234567", placa: "C4F-912", conductor: "Manuel Vega", producto: "PREMIUM", cantidad: 3.0, precio: 19.50, total: 58.50, grifero: "Juan P.", estado: "FACTURADO", observacion: "F001-00455" },
-    { id: 103, fecha: "2026-08-18", n_vale: 379, turno: "T2 (Tarde)", cliente: "-", lugar: "General", telefono: "", placa: "-", conductor: "-", producto: "PREMIUM", cantidad: 0.0, precio: 0.0, total: 0.0, grifero: "Pedro M.", estado: "ANULADO", observacion: "VALE ROTO" },
-    { id: 104, fecha: "2026-08-19", n_vale: 380, turno: "T1 (Mañana)", cliente: "Distribuidora Lima", lugar: "Almacén Central", telefono: "940112233", placa: "T6U-711", conductor: "Jorge Quispe", producto: "DIESEL B5", cantidad: 10.0, precio: 16.80, total: 168.00, grifero: "Luis G.", estado: "FACTURADO", observacion: "F001-00460" },
-    { id: 105, fecha: "2026-08-19", n_vale: 381, turno: "T2 (Tarde)", cliente: "Transportes Andina S.A.C.", lugar: "Sede Lima", telefono: "987654321", placa: "A1B-823", conductor: "Carlos Rojas", producto: "PREMIUM", cantidad: 4.0, precio: 19.50, total: 78.00, grifero: "Pedro M.", estado: "PENDIENTE", observacion: "" },
-    { id: 106, fecha: "2026-08-17", n_vale: 382, turno: "T3 (Noche)", cliente: "Minera Horizonte", lugar: "Campamento Norte", telefono: "998877665", placa: "V7X-551", conductor: "Alonso Ruiz", producto: "PREMIUM", cantidad: 1.0, precio: 19.50, total: 19.50, grifero: "Mario S.", estado: "PENDIENTE", observacion: "" },
-    { id: 107, fecha: "2026-08-20", n_vale: 383, turno: "T1 (Mañana)", cliente: "Constructora del Sur", lugar: "Cantera Sur", telefono: "951234567", placa: "C4F-912", conductor: "Manuel Vega", producto: "PREMIUM", cantidad: 4.0, precio: 19.50, total: 78.00, grifero: "Juan P.", estado: "PENDIENTE", observacion: "" },
-    { id: 108, fecha: "2026-08-21", n_vale: 384, turno: "T1 (Mañana)", cliente: "Distribuidora Lima", lugar: "Almacén Central", telefono: "940112233", placa: "T6U-711", conductor: "Jorge Quispe", producto: "PREMIUM", cantidad: 7.0, precio: 19.50, total: 136.50, grifero: "Luis G.", estado: "PENDIENTE", observacion: "" },
-    { id: 109, fecha: "2026-08-21", n_vale: 385, turno: "T2 (Tarde)", cliente: "Agropecuaria San José", lugar: "Fundo Cañete", telefono: "977441122", placa: "B8K-102", conductor: "Raúl Castro", producto: "PREMIUM", cantidad: 8.0, precio: 19.50, total: 156.00, grifero: "Pedro M.", estado: "PENDIENTE", observacion: "" },
-    { id: 110, fecha: "2026-08-22", n_vale: 386, turno: "T1 (Mañana)", cliente: "-", lugar: "General", telefono: "", placa: "-", conductor: "-", producto: "PREMIUM", cantidad: 0.0, precio: 0.0, total: 0.0, grifero: "Juan P.", estado: "ANULADO", observacion: "VALE EXTRAVIADO" },
-    { id: 111, fecha: "2026-08-25", n_vale: 387, turno: "T1 (Mañana)", cliente: "Distribuidora Lima", lugar: "Almacén Central", telefono: "940112233", placa: "T6U-711", conductor: "Jorge Quispe", producto: "DIESEL B5", cantidad: 11.0, precio: 16.80, total: 184.80, grifero: "Luis G.", estado: "PENDIENTE", observacion: "" },
-    { id: 112, fecha: "2026-08-25", n_vale: 388, turno: "T2 (Tarde)", cliente: "Transportes Andina S.A.C.", lugar: "Sede Lima", telefono: "987654321", placa: "A1B-823", conductor: "Carlos Rojas", producto: "PREMIUM", cantidad: 4.0, precio: 19.50, total: 78.00, grifero: "Pedro M.", estado: "PENDIENTE", observacion: "" },
-    { id: 113, fecha: "2026-08-26", n_vale: 389, turno: "T1 (Mañana)", cliente: "Constructora del Sur", lugar: "Cantera Sur", telefono: "951234567", placa: "C4F-912", conductor: "Manuel Vega", producto: "PREMIUM", cantidad: 4.0, precio: 19.50, total: 78.00, grifero: "Juan P.", estado: "PENDIENTE", observacion: "" },
-    { id: 114, fecha: "2026-08-27", n_vale: 390, turno: "T1 (Mañana)", cliente: "Agropecuaria San José", lugar: "Fundo Cañete", telefono: "977441122", placa: "B8K-102", conductor: "Raúl Castro", producto: "PREMIUM", cantidad: 8.0, precio: 19.50, total: 156.00, grifero: "Luis G.", estado: "PENDIENTE", observacion: "" },
-    { id: 115, fecha: "2026-08-31", n_vale: 391, turno: "T2 (Tarde)", cliente: "Transportes Andina S.A.C.", lugar: "Sede Lima", telefono: "987654321", placa: "B3M-442", conductor: "Felipe Díaz", producto: "PREMIUM", cantidad: 7.0, precio: 19.50, total: 136.50, grifero: "Pedro M.", estado: "PENDIENTE", observacion: "" },
-    { id: 116, fecha: "2026-08-31", n_vale: 392, turno: "T3 (Noche)", cliente: "-", lugar: "General", telefono: "", placa: "-", conductor: "-", producto: "PREMIUM", cantidad: 0.0, precio: 0.0, total: 0.0, grifero: "Mario S.", estado: "ANULADO", observacion: "CORRELATIVO SALTADO" },
-    { id: 117, fecha: "2026-08-31", n_vale: 393, turno: "T3 (Noche)", cliente: "-", lugar: "General", telefono: "", placa: "-", conductor: "-", producto: "PREMIUM", cantidad: 0.0, precio: 0.0, total: 0.0, grifero: "Mario S.", estado: "ANULADO", observacion: "ERROR DE IMPRESIÓN" },
-    { id: 118, fecha: "2026-09-01", n_vale: 394, turno: "T1 (Mañana)", cliente: "Distribuidora Lima", lugar: "Almacén Central", telefono: "940112233", placa: "T6U-711", conductor: "Jorge Quispe", producto: "DIESEL B5", cantidad: 6.0, precio: 16.80, total: 100.80, grifero: "Luis G.", estado: "PENDIENTE", observacion: "" },
-    { id: 119, fecha: "2026-09-02", n_vale: 395, turno: "T2 (Tarde)", cliente: "Minera Horizonte", lugar: "Campamento Norte", telefono: "998877665", placa: "V7X-551", conductor: "Alonso Ruiz", producto: "PREMIUM", cantidad: 12.0, precio: 19.50, total: 234.00, grifero: "Pedro M.", estado: "PENDIENTE", observacion: "" },
-    { id: 120, fecha: "2026-09-02", n_vale: 396, turno: "T3 (Noche)", cliente: "-", lugar: "General", telefono: "", placa: "-", conductor: "-", producto: "PREMIUM", cantidad: 0.0, precio: 0.0, total: 0.0, grifero: "Mario S.", estado: "ANULADO", observacion: "PLACA INCORRECTA" }
+  const CLIENTES_OFICIALES = [
+    "UGEL",
+    "RED DE SALUD",
+    "FISCALIA",
+    "IVP",
+    "AGRORURAL",
+    "AGENCIA AGRARIA",
+    "MUNICIPALIDAD JESUS",
+    "CONSORCIO VIAL JESUS",
+    "GRUPO MONTERRICO",
+    "VENTA DIARIA"
   ];
 
+  const PERSONAL_OFICIAL = [
+    "YANET",
+    "CRESILDO",
+    "YAMILEX",
+    "OTROS"
+  ];
+
+  const TANQUES_OFICIALES = {
+    "DIESEL B5-S50": {
+      capacidad: 3000,
+      stock: 2150,
+      alerta_naranja: 500,
+      alerta_roja: 250,
+      unidad: "Gln"
+    },
+    "GASOHOL PREMIUM": {
+      capacidad: 1500,
+      stock: 1100,
+      alerta_naranja: 500,
+      alerta_roja: 250,
+      unidad: "Gln"
+    },
+    "GASOHOL REGULAR": {
+      capacidad: 1500,
+      stock: 980,
+      alerta_naranja: 500,
+      alerta_roja: 250,
+      unidad: "Gln"
+    }
+  };
+
+  const SEDE_ESTATICA = "jesus_de_lauricocha_huanuco";
+
+  const DIAS_SEMANA = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+
   let state = {
-    empresa: "ESTACIÓN DE SERVICIOS Y COMBUSTIBLES S.A.C.",
-    ruc: "20601234567",
-    direccion: "Av. Panamericana Sur Km 140 - Cañete, Lima",
-    telefono: "01-480-1234",
+    empresa: "ESTACIÓN DE SERVICIOS SULLCAIRI",
+    ruc: "20608945123",
+    direccion: SEDE_ESTATICA,
+    telefono: "962123456",
     precios: {
-      "DIESEL B5": 16.80,
-      "PREMIUM": 19.50,
-      "REGULAR": 17.20,
-      "GLP": 8.50
+      "DIESEL B5-S50": 16.80,
+      "GASOHOL PREMIUM": 19.50,
+      "GASOHOL REGULAR": 17.20
     },
-    tanques: {
-      "DIESEL B5": { capacidad: 8000, stock: 4250, unidad: "Gln" },
-      "PREMIUM": { capacidad: 5000, stock: 2840, unidad: "Gln" },
-      "REGULAR": { capacidad: 6000, stock: 3100, unidad: "Gln" },
-      "GLP": { capacidad: 4000, stock: 1950, unidad: "Gln" }
-    },
-    vales: [...DEMO_VALES]
+    tanques: JSON.parse(JSON.stringify(TANQUES_OFICIALES)),
+    clientes: [...CLIENTES_OFICIALES],
+    personal: [...PERSONAL_OFICIAL],
+    lugares: [SEDE_ESTATICA],
+    movimientos_tanque: [
+      {
+        id: 1,
+        dia: "Lunes",
+        fecha: "15/09",
+        anio: 2026,
+        fecha_completa: "2026-09-15",
+        tipo: "DIESEL B5-S50",
+        cantidad: 25.0,
+        operacion: "Despacho Vale #401",
+        cliente: "MUNICIPALIDAD JESUS",
+        stock_resultante: 2150
+      },
+      {
+        id: 2,
+        dia: "Lunes",
+        fecha: "15/09",
+        anio: 2026,
+        fecha_completa: "2026-09-15",
+        tipo: "GASOHOL PREMIUM",
+        cantidad: 12.0,
+        operacion: "Despacho Vale #402",
+        cliente: "RED DE SALUD",
+        stock_resultante: 1100
+      },
+      {
+        id: 3,
+        dia: "Martes",
+        fecha: "16/09",
+        anio: 2026,
+        fecha_completa: "2026-09-16",
+        tipo: "GASOHOL REGULAR",
+        cantidad: 10.0,
+        operacion: "Despacho Vale #403",
+        cliente: "UGEL",
+        stock_resultante: 980
+      }
+    ],
+    vales: []
   };
 
   const listeners = [];
@@ -68,33 +127,95 @@ const Store = (() => {
     return JSON.parse(JSON.stringify(state));
   }
 
+  function descomponerFecha(fStr) {
+    let dObj = null;
+    if (fStr) {
+      if (typeof fStr === 'string') {
+        const clean = fStr.trim();
+        if (clean.includes('-')) {
+          const parts = clean.split('-');
+          if (parts.length >= 3) {
+            const y = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10) - 1;
+            const d = parseInt(parts[2], 10);
+            if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+              dObj = new Date(y, m, d);
+            }
+          }
+        } else if (clean.includes('/')) {
+          const parts = clean.split('/');
+          if (parts.length >= 3) {
+            const d = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10) - 1;
+            const y = parseInt(parts[2], 10);
+            if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+              dObj = new Date(y, m, d);
+            }
+          }
+        }
+      } else if (fStr instanceof Date && !isNaN(fStr.getTime())) {
+        dObj = fStr;
+      }
+    }
+    if (!dObj || isNaN(dObj.getTime())) {
+      dObj = new Date();
+    }
+
+    const diaSemana = DIAS_SEMANA[dObj.getDay()] || "Lunes";
+    const diaNum = String(dObj.getDate()).padStart(2, '0');
+    const mesNum = String(dObj.getMonth() + 1).padStart(2, '0');
+    const anioNum = dObj.getFullYear();
+
+    return {
+      dia: diaSemana,
+      fecha: `${diaNum}/${mesNum}`,
+      anio: anioNum,
+      fecha_completa: `${anioNum}-${mesNum}-${diaNum}`
+    };
+  }
+
   async function init() {
+    // 1. Siempre cargar desde localStorage primero (datos del dispositivo)
+    const local = localStorage.getItem('grifo_erp_jesus_state');
+    if (local) {
+      try {
+        const parsed = JSON.parse(local);
+        if (parsed && typeof parsed === 'object') {
+          if (Array.isArray(parsed.vales)) state.vales = parsed.vales;
+          if (parsed.empresa) state.empresa = parsed.empresa;
+          if (parsed.ruc) state.ruc = parsed.ruc;
+          state.direccion = SEDE_ESTATICA;
+          if (parsed.precios) state.precios = { ...state.precios, ...parsed.precios };
+          if (parsed.tanques) state.tanques = { ...state.tanques, ...parsed.tanques };
+          if (Array.isArray(parsed.clientes)) state.clientes = parsed.clientes;
+          if (Array.isArray(parsed.personal)) state.personal = parsed.personal;
+          state.lugares = [SEDE_ESTATICA];
+          if (Array.isArray(parsed.movimientos_tanque)) state.movimientos_tanque = parsed.movimientos_tanque;
+        }
+      } catch (e) {}
+    }
+
+    // 2. Intentar sincronizar con servidor (opcional, no bloquea)
     try {
       const res = await fetch('/api/datos', { cache: 'no-store' });
       if (res.ok) {
         const remote = await res.json();
-        if (remote && Array.isArray(remote.vales)) {
-          if (remote.vales.length > 0) state.vales = remote.vales;
+        if (remote && Array.isArray(remote.vales) && remote.vales.length > state.vales.length) {
+          // Solo sobrescribir si el servidor tiene más datos
+          if (Array.isArray(remote.vales)) state.vales = remote.vales;
           if (remote.empresa) state.empresa = remote.empresa;
           if (remote.ruc) state.ruc = remote.ruc;
-          if (remote.direccion) state.direccion = remote.direccion;
+          state.direccion = SEDE_ESTATICA;
           if (remote.precios) state.precios = { ...state.precios, ...remote.precios };
           if (remote.tanques) state.tanques = { ...state.tanques, ...remote.tanques };
-          saveLocal();
-          notify();
-          return;
+          if (Array.isArray(remote.clientes)) state.clientes = remote.clientes;
+          if (Array.isArray(remote.personal)) state.personal = remote.personal;
+          state.lugares = [SEDE_ESTATICA];
+          if (Array.isArray(remote.movimientos_tanque)) state.movimientos_tanque = remote.movimientos_tanque;
         }
       }
-    } catch (e) {}
-
-    const local = localStorage.getItem('grifo_erp_state');
-    if (local) {
-      try {
-        const parsed = JSON.parse(local);
-        if (parsed && Array.isArray(parsed.vales)) {
-          state = { ...state, ...parsed };
-        }
-      } catch (e) {}
+    } catch (e) {
+      // Sin servidor disponible (GitHub Pages) → funciona 100% local
     }
 
     saveLocal();
@@ -102,99 +223,244 @@ const Store = (() => {
   }
 
   function saveLocal() {
-    localStorage.setItem('grifo_erp_state', JSON.stringify(state));
+    try {
+      localStorage.setItem('grifo_erp_jesus_state', JSON.stringify(state));
+    } catch (e) {
+      console.warn('No se pudo guardar en localStorage:', e.message);
+    }
   }
 
   async function persist() {
     saveLocal();
     notify();
+    // Intentar sincronizar con servidor (si existe), sin bloquear
     try {
       await fetch('/api/datos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(state)
       });
-    } catch (e) {}
+    } catch (e) {
+      // Sin servidor → datos ya guardados en localStorage
+    }
   }
 
+  // REGISTRO DE VALE + ACTUALIZACIÓN DE STOCK Y PANEL DIARIO
   async function agregarVale(vale) {
+    vale.lugar = SEDE_ESTATICA;
     state.vales.unshift(vale);
+    registrarNuevoClienteSiNoExiste(vale.cliente);
+    registrarNuevoPersonalSiNoExiste(vale.grifero);
+
+    // Descontar del stock del tanque si no está anulado
+    if (vale.estado !== "ANULADO" && state.tanques[vale.producto]) {
+      const cant = Number(vale.cantidad) || 0;
+      state.tanques[vale.producto].stock = Math.max(0, Math.round((state.tanques[vale.producto].stock - cant) * 100) / 100);
+
+      // Registrar movimiento en el panel de auditoría diaria
+      const fInfo = descomponerFecha(vale.fecha);
+      state.movimientos_tanque.unshift({
+        id: Date.now(),
+        dia: fInfo.dia,
+        fecha: fInfo.fecha,
+        anio: fInfo.anio,
+        fecha_completa: fInfo.fecha_completa,
+        tipo: vale.producto,
+        cantidad: cant,
+        operacion: `Despacho Vale #${vale.n_vale}`,
+        cliente: vale.cliente,
+        stock_resultante: state.tanques[vale.producto].stock
+      });
+    }
+
     await persist();
   }
 
   async function actualizarVale(id, valeActualizado) {
     const idx = state.vales.findIndex(v => v.id === id);
     if (idx !== -1) {
+      const valePrevio = state.vales[idx];
+
+      // Revertir stock previo si no estaba anulado
+      if (valePrevio.estado !== "ANULADO" && state.tanques[valePrevio.producto]) {
+        state.tanques[valePrevio.producto].stock += (Number(valePrevio.cantidad) || 0);
+      }
+
+      // Aplicar nuevo stock
+      if (valeActualizado.estado !== "ANULADO" && state.tanques[valeActualizado.producto]) {
+        const cant = Number(valeActualizado.cantidad) || 0;
+        state.tanques[valeActualizado.producto].stock = Math.max(0, Math.round((state.tanques[valeActualizado.producto].stock - cant) * 100) / 100);
+
+        // Movimiento diario
+        const fInfo = descomponerFecha(valeActualizado.fecha);
+        state.movimientos_tanque.unshift({
+          id: Date.now(),
+          dia: fInfo.dia,
+          fecha: fInfo.fecha,
+          anio: fInfo.anio,
+          fecha_completa: fInfo.fecha_completa,
+          tipo: valeActualizado.producto,
+          cantidad: cant,
+          operacion: `Edición Vale #${valeActualizado.n_vale}`,
+          cliente: valeActualizado.cliente,
+          stock_resultante: state.tanques[valeActualizado.producto].stock
+        });
+      }
+
+      valeActualizado.lugar = SEDE_ESTATICA;
       state.vales[idx] = { ...state.vales[idx], ...valeActualizado };
+      registrarNuevoClienteSiNoExiste(valeActualizado.cliente);
+      registrarNuevoPersonalSiNoExiste(valeActualizado.grifero);
       await persist();
     }
   }
 
   async function anularVale(id, motivo) {
     const v = state.vales.find(item => item.id === id);
-    if (v) {
+    if (v && v.estado !== "ANULADO") {
+      // Revertir stock al tanque
+      if (state.tanques[v.producto]) {
+        state.tanques[v.producto].stock += (Number(v.cantidad) || 0);
+      }
       v.estado = "ANULADO";
       v.observacion = motivo ? `ANULADO: ${motivo}` : "ANULADO";
+
+      const fInfo = descomponerFecha(v.fecha);
+      state.movimientos_tanque.unshift({
+        id: Date.now(),
+        dia: fInfo.dia,
+        fecha: fInfo.fecha,
+        anio: fInfo.anio,
+        fecha_completa: fInfo.fecha_completa,
+        tipo: v.producto,
+        cantidad: Number(v.cantidad) || 0,
+        operacion: `Anulación Vale #${v.n_vale} (+${v.cantidad} Gln repuestos)`,
+        cliente: v.cliente,
+        stock_resultante: state.tanques[v.producto].stock
+      });
+
       await persist();
     }
   }
 
   async function eliminarVale(id) {
+    const v = state.vales.find(item => item.id === id);
+    if (v && v.estado !== "ANULADO" && state.tanques[v.producto]) {
+      state.tanques[v.producto].stock += (Number(v.cantidad) || 0);
+    }
     state.vales = state.vales.filter(item => item.id !== id);
     await persist();
   }
 
-  async function importarValesMasivos(nuevosVales, reemplazar = false) {
-    if (reemplazar) {
-      state.vales = nuevosVales;
-    } else {
-      // Filtrar duplicados por n_vale
-      const valesExistentes = new Set(state.vales.map(v => Number(v.n_vale)));
-      const sinDuplicados = nuevosVales.filter(v => !valesExistentes.has(Number(v.n_vale)));
-      state.vales = [...sinDuplicados, ...state.vales];
-    }
+  // MODIFICAR CANTIDAD DE GASOLINA EN TANQUE (VARILLAJE / DESCARGA CISTERNA)
+  async function modificarStockTanque(tipoCombustible, nuevoStockGln, motivo, fechaMovimiento) {
+    if (!state.tanques[tipoCombustible]) return;
+
+    const stockAnterior = state.tanques[tipoCombustible].stock;
+    const nuevoStock = Math.max(0, Math.min(state.tanques[tipoCombustible].capacidad, parseFloat(nuevoStockGln) || 0));
+    const diferencia = Math.round((nuevoStock - stockAnterior) * 100) / 100;
+
+    state.tanques[tipoCombustible].stock = nuevoStock;
+
+    // Registrar en panel diario: Día, Fecha, Año, Cantidad, Tipo
+    const fInfo = descomponerFecha(fechaMovimiento || new Date().toISOString().split('T')[0]);
+    state.movimientos_tanque.unshift({
+      id: Date.now(),
+      dia: fInfo.dia,
+      fecha: fInfo.fecha,
+      anio: fInfo.anio,
+      fecha_completa: fInfo.fecha_completa,
+      tipo: tipoCombustible,
+      cantidad: nuevoStock,
+      diferencia: diferencia,
+      operacion: motivo || "Ajuste de Varillaje / Medición Física",
+      cliente: "Tanque " + tipoCombustible,
+      stock_resultante: nuevoStock
+    });
+
     await persist();
   }
 
-  async function cargarDatosDemo() {
-    state.vales = JSON.parse(JSON.stringify(DEMO_VALES));
+  async function importarValesMasivos(nuevosVales, reemplazar = false) {
+    let valesAProcesar = [];
+    if (reemplazar) {
+      state.vales = nuevosVales;
+      valesAProcesar = nuevosVales;
+    } else {
+      const valesExistentes = new Set(state.vales.map(v => Number(v.n_vale)));
+      valesAProcesar = nuevosVales.filter(v => !valesExistentes.has(Number(v.n_vale)));
+      state.vales = [...valesAProcesar, ...state.vales];
+    }
+
+    valesAProcesar.forEach(v => {
+      v.lugar = SEDE_ESTATICA;
+      registrarNuevoClienteSiNoExiste(v.cliente);
+      registrarNuevoPersonalSiNoExiste(v.grifero);
+
+      if (v.estado !== "ANULADO" && state.tanques[v.producto]) {
+        const cant = Number(v.cantidad) || 0;
+        state.tanques[v.producto].stock = Math.max(0, Math.round((state.tanques[v.producto].stock - cant) * 100) / 100);
+        const fInfo = descomponerFecha(v.fecha);
+        state.movimientos_tanque.unshift({
+          id: Date.now() + Math.floor(Math.random() * 100000),
+          dia: fInfo.dia,
+          fecha: fInfo.fecha,
+          anio: fInfo.anio,
+          fecha_completa: fInfo.fecha_completa,
+          tipo: v.producto,
+          cantidad: cant,
+          operacion: `Importación Excel Vale #${v.n_vale}`,
+          cliente: v.cliente,
+          stock_resultante: state.tanques[v.producto].stock
+        });
+      }
+    });
+
     await persist();
+    return valesAProcesar.length;
+  }
+
+  function registrarNuevoClienteSiNoExiste(c) {
+    if (!c || c === "-" || c.trim() === "") return;
+    const limpio = c.trim().toUpperCase();
+    if (!state.clientes.includes(limpio)) state.clientes.push(limpio);
+  }
+
+  function registrarNuevoPersonalSiNoExiste(p) {
+    if (!p || p === "-" || p.trim() === "") return;
+    const limpio = p.trim().toUpperCase();
+    if (!state.personal.includes(limpio)) state.personal.push(limpio);
+  }
+
+  async function cargarDatosDemo() {
+    await init();
   }
 
   async function limpiarBaseDatos() {
     state.vales = [];
+    state.movimientos_tanque = [];
     await persist();
   }
 
   async function actualizarConfiguracion(empresa, ruc, direccion, precios) {
     state.empresa = empresa;
     state.ruc = ruc;
-    state.direccion = direccion;
+    state.direccion = SEDE_ESTATICA;
     state.precios = { ...state.precios, ...precios };
     await persist();
-  }
-
-  function getLugaresDisponibles() {
-    const lugares = new Set();
-    state.vales.forEach(v => {
-      if (v.lugar && v.lugar.trim() !== "" && v.lugar !== "-") {
-        lugares.add(v.lugar.trim());
-      }
-    });
-    return Array.from(lugares).sort();
   }
 
   function getMetricas() {
     let dieselGln = 0, dieselSoles = 0;
     let premiumGln = 0, premiumSoles = 0;
     let regularGln = 0, regularSoles = 0;
-    let glpGln = 0, glpSoles = 0;
     let totalGln = 0, totalSoles = 0;
     let pendienteSoles = 0, cantPendientes = 0;
     let anulados = 0;
 
     const clientesMap = {};
     const lugaresMap = {};
+    const personalMap = {};
 
     for (let i = 0; i < state.vales.length; i++) {
       const v = state.vales[i];
@@ -209,22 +475,25 @@ const Store = (() => {
       totalGln += g;
       totalSoles += s;
 
-      if (v.producto === "DIESEL B5") { dieselGln += g; dieselSoles += s; }
-      else if (v.producto === "PREMIUM") { premiumGln += g; premiumSoles += s; }
-      else if (v.producto === "REGULAR") { regularGln += g; regularSoles += s; }
-      else if (v.producto === "GLP") { glpGln += g; glpSoles += s; }
+      const prod = String(v.producto || "").toUpperCase();
+      if (prod.includes("DIESEL") || prod.includes("B5")) {
+        dieselGln += g; dieselSoles += s;
+      } else if (prod.includes("PREMIUM")) {
+        premiumGln += g; premiumSoles += s;
+      } else if (prod.includes("REGULAR")) {
+        regularGln += g; regularSoles += s;
+      }
 
       if (v.estado === "PENDIENTE") {
         pendienteSoles += s;
         cantPendientes++;
       }
 
-      // Agrupación por cliente
-      const cNom = v.cliente || "Cliente General";
+      const cNom = v.cliente || "General";
       if (!clientesMap[cNom]) {
         clientesMap[cNom] = {
           cliente: cNom,
-          lugar: v.lugar || "Principal",
+          lugar: v.lugar || "Sede Jesús",
           telefono: v.telefono || "",
           valesPendientes: 0,
           valesTotales: 0,
@@ -241,30 +510,38 @@ const Store = (() => {
         clientesMap[cNom].deudaSoles += s;
       }
 
-      // Agrupación por Lugar / Zona
-      const lugarNom = (v.lugar && v.lugar.trim() !== "") ? v.lugar.trim() : "General";
+      const lugarNom = (v.lugar && v.lugar.trim() !== "") ? v.lugar.trim() : "Sede Jesús";
       if (!lugaresMap[lugarNom]) {
         lugaresMap[lugarNom] = { lugar: lugarNom, galones: 0, soles: 0, vales: 0 };
       }
       lugaresMap[lugarNom].galones += g;
       lugaresMap[lugarNom].soles += s;
       lugaresMap[lugarNom].vales++;
+
+      const persNom = (v.grifero && v.grifero.trim() !== "") ? v.grifero.trim() : "OTROS";
+      if (!personalMap[persNom]) {
+        personalMap[persNom] = { personal: persNom, vales: 0, galones: 0, soles: 0 };
+      }
+      personalMap[persNom].vales++;
+      personalMap[persNom].galones += g;
+      personalMap[persNom].soles += s;
     }
 
     const rankingClientes = Object.values(clientesMap).sort((a, b) => b.totalSoles - a.totalSoles);
     const rankingLugares = Object.values(lugaresMap).sort((a, b) => b.soles - a.soles);
+    const rankingPersonal = Object.values(personalMap).sort((a, b) => b.galones - a.galones);
 
     return {
       dieselGln, dieselSoles,
       premiumGln, premiumSoles,
       regularGln, regularSoles,
-      glpGln, glpSoles,
       totalGln, totalSoles,
       pendienteSoles, cantPendientes,
       anulados,
       totalVales: state.vales.length,
       rankingClientes,
-      rankingLugares
+      rankingLugares,
+      rankingPersonal
     };
   }
 
@@ -274,7 +551,7 @@ const Store = (() => {
       const n = Number(state.vales[i].n_vale);
       if (!isNaN(n) && n > max) max = n;
     }
-    return max > 0 ? max + 1 : 101;
+    return max > 0 ? max + 1 : 401;
   }
 
   return {
@@ -285,11 +562,12 @@ const Store = (() => {
     actualizarVale,
     anularVale,
     eliminarVale,
+    modificarStockTanque,
     importarValesMasivos,
     cargarDatosDemo,
     limpiarBaseDatos,
     actualizarConfiguracion,
-    getLugaresDisponibles,
+    descomponerFecha,
     getMetricas,
     getSiguienteVale
   };
