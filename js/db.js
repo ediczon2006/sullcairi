@@ -1,9 +1,8 @@
-// ========================================================
-//  ESTACIÓN DE SERVICIOS SULLCAIRI — CAPA DE DATOS HÍBRIDA (IndexedDB + Supabase)
-//  Estilo: Leytrix Core DB Architecture
-//  Sede Fija Oficial: jesus_de_lauricocha_huanuco
-//  Modo: 100% Offline-First + Realtime Cloud (gtfmhtrvsbfcftstbadj)
-// ========================================================
+// ====================================================================
+//  ESTACIÓN DE SERVICIOS SULLCAIRI — CAPA DE DATOS HÍBRIDA EMPRESARIAL
+//  IndexedDB (100% Offline-First) + Supabase Cloud (gtfmhtrvsbfcftstbadj)
+//  Sede Oficial Inmutable: jesus_de_lauricocha_huanuco
+// ====================================================================
 
 const SUPA_URL = 'https://gtfmhtrvsbfcftstbadj.supabase.co';
 const SUPA_KEY = 'sb_publishable_jLqnXfwQ2Zksb_fvuympjQ_v2OR8F8x';
@@ -34,9 +33,9 @@ try {
 const DB_NAME = 'grifo_sullcairi_erp_v1';
 const DB_VER  = 1;
 
-// SEED INICIAL DE TANQUES
+// SEED INICIAL DE TANQUES (6,000 GL Capacidad Total)
 const TANQUES_DEFAULT = {
-  'DIESEL B5-S50':  { producto: 'DIESEL B5-S50', capacidad: 3000, stock: 2150, alerta_naranja: 500, alerta_roja: 250, unidad: 'Gln' },
+  'DIESEL B5-S50':   { producto: 'DIESEL B5-S50', capacidad: 3000, stock: 2150, alerta_naranja: 500, alerta_roja: 250, unidad: 'Gln' },
   'GASOHOL PREMIUM': { producto: 'GASOHOL PREMIUM', capacidad: 1500, stock: 1100, alerta_naranja: 500, alerta_roja: 250, unidad: 'Gln' },
   'GASOHOL REGULAR': { producto: 'GASOHOL REGULAR', capacidad: 1500, stock: 980, alerta_naranja: 500, alerta_roja: 250, unidad: 'Gln' }
 };
@@ -58,6 +57,9 @@ const PRECIOS_DEFAULT = {
 // PIN ADMIN POR DEFECTO: 1234
 const DEFAULT_PIN_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4";
 
+// ====================================================================
+//  MOTOR INDEXEDDB CON TRANSACCIONES SEGURAS
+// ====================================================================
 const IDB = (() => {
   let _db = null;
 
@@ -98,55 +100,50 @@ const IDB = (() => {
 
       req.onsuccess = async e => {
         _db = e.target.result;
-        await seedInicialSiVacio();
+        await seedInitialData();
         resolve(_db);
       };
 
       req.onerror = e => reject(e.target.error);
-      req.onblocked = () => {
-        console.warn('[IDB] Bloqueado por otra pestaña.');
-        reject(new Error('IndexedDB bloqueada.'));
-      };
     });
   }
 
-  async function db() { return _db || (_db = await open()); }
-
-  async function seedInicialSiVacio() {
+  async function seedInitialData() {
     try {
-      const d = _db;
-      // Verificar si hay configuración
-      const tx = d.transaction(['configuracion', 'tanques'], 'readwrite');
-      const storeCfg = tx.objectStore('configuracion');
-      const reqCfg = storeCfg.get('principal');
+      const tx = _db.transaction(['tanques', 'configuracion'], 'readwrite');
+      const storeT = tx.objectStore('tanques');
+      const storeC = tx.objectStore('configuracion');
 
-      reqCfg.onsuccess = () => {
-        if (!reqCfg.result) {
-          storeCfg.put({
-            id: 'principal',
-            empresa: 'ESTACIÓN DE SERVICIOS SULLCAIRI',
+      const countTReq = storeT.count();
+      countTReq.onsuccess = () => {
+        if (countTReq.result === 0) {
+          Object.values(TANQUES_DEFAULT).forEach(t => storeT.put(t));
+        }
+      };
+
+      const getCfgReq = storeC.get('sullcairi_config');
+      getCfgReq.onsuccess = () => {
+        if (!getCfgReq.result) {
+          storeC.put({
+            id: 'sullcairi_config',
+            estacion_nombre: 'ESTACIÓN DE SERVICIOS SULLCAIRI',
             ruc: '20608945123',
-            direccion: SEDE_OFICIAL,
             telefono: '962123456',
-            admin_pin_hash: DEFAULT_PIN_HASH,
-            precios: PRECIOS_DEFAULT,
-            clientes: CLIENTES_DEFAULT,
-            personal: PERSONAL_DEFAULT,
+            sede: SEDE_OFICIAL,
+            precio_diesel: PRECIOS_DEFAULT['DIESEL B5-S50'],
+            precio_premium: PRECIOS_DEFAULT['GASOHOL PREMIUM'],
+            precio_regular: PRECIOS_DEFAULT['GASOHOL REGULAR'],
+            pin_hash: DEFAULT_PIN_HASH,
             actualizado_el: new Date().toISOString()
           });
         }
       };
-
-      const storeTanques = tx.objectStore('tanques');
-      const reqT = storeTanques.getAll();
-      reqT.onsuccess = () => {
-        if (!reqT.result || reqT.result.length === 0) {
-          Object.values(TANQUES_DEFAULT).forEach(t => {
-            storeTanques.put({ ...t, actualizado_el: new Date().toISOString() });
-          });
-        }
-      };
     } catch (_) {}
+  }
+
+  async function db() {
+    if (_db) return _db;
+    return await open();
   }
 
   return {
@@ -244,11 +241,27 @@ const IDB = (() => {
   };
 })();
 
-// ========================================================
-//  FACHADA DE ALTO NIVEL PARA LA ESTACIÓN (DB)
-// ========================================================
+// ====================================================================
+//  FACHADA DE CONTROL Y NEGOCIO DE LA ESTACIÓN (DB)
+// ====================================================================
 const DB = {
-  // Clamping seguro contra desbordes numéricos de tanques
+  // Generador de ID a prueba de colisiones
+  generarIdUnico() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      const hex = crypto.randomUUID().replace(/\D/g, '').slice(0, 15);
+      return Number(Date.now().toString().slice(0, 8) + hex.slice(0, 6));
+    }
+    return Date.now() + Math.floor(Math.random() * 10000);
+  },
+
+  generarIdMovimiento() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return 'mov_' + crypto.randomUUID();
+    }
+    return 'mov_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+  },
+
+  // Clamping seguro contra desbordes numéricos y errores de coma flotante
   sumarStock(actual, delta, max) {
     const res = Math.round((Number(actual || 0) + Number(delta || 0)) * 100) / 100;
     return Math.max(0, Math.min(res, Number(max || 999999)));
@@ -260,46 +273,66 @@ const DB = {
   },
 
   async obtenerConfiguracion() {
-    let cfg = await IDB.get('configuracion', 'principal');
+    let cfg = await IDB.get('configuracion', 'sullcairi_config');
     if (!cfg) {
       cfg = {
-        id: 'principal',
-        empresa: 'ESTACIÓN DE SERVICIOS SULLCAIRI',
+        id: 'sullcairi_config',
+        estacion_nombre: 'ESTACIÓN DE SERVICIOS SULLCAIRI',
         ruc: '20608945123',
-        direccion: SEDE_OFICIAL,
         telefono: '962123456',
-        admin_pin_hash: DEFAULT_PIN_HASH,
-        precios: PRECIOS_DEFAULT,
-        clientes: CLIENTES_DEFAULT,
-        personal: PERSONAL_DEFAULT
+        sede: SEDE_OFICIAL,
+        precio_diesel: PRECIOS_DEFAULT['DIESEL B5-S50'],
+        precio_premium: PRECIOS_DEFAULT['GASOHOL PREMIUM'],
+        precio_regular: PRECIOS_DEFAULT['GASOHOL REGULAR'],
+        pin_hash: DEFAULT_PIN_HASH,
+        actualizado_el: new Date().toISOString()
       };
       await IDB.put('configuracion', cfg);
     }
-    cfg.direccion = SEDE_OFICIAL; // Inmutable
+    cfg.sede = SEDE_OFICIAL; // Inmutable
     return cfg;
   },
 
   async guardarConfiguracion(cfg) {
-    cfg.id = 'principal';
-    cfg.direccion = SEDE_OFICIAL;
+    cfg.id = 'sullcairi_config';
+    cfg.sede = SEDE_OFICIAL;
     cfg.actualizado_el = new Date().toISOString();
     await IDB.put('configuracion', cfg);
     if (typeof window.onDatosActualizados === 'function') window.onDatosActualizados();
   },
 
   async verificarPinAdmin(pinIngresado) {
+    // 1. Verificar si está bloqueado por fuerza bruta
+    if (typeof SullcairiSecurity !== 'undefined' && SullcairiSecurity.estaPinBloqueado) {
+      const estadoBloqueo = SullcairiSecurity.estaPinBloqueado();
+      if (estadoBloqueo.bloqueado) {
+        throw new Error(`🔒 Acceso temporalmente bloqueado por seguridad. Intente nuevamente en ${estadoBloqueo.segundos} segundos.`);
+      }
+    }
+
     const cfg = await this.obtenerConfiguracion();
-    const hashIngresado = await SullcairiSecurity.hashPin(pinIngresado);
-    return hashIngresado === (cfg.admin_pin_hash || DEFAULT_PIN_HASH);
+    const hash = await SullcairiSecurity.hashPin(pinIngresado);
+    const correcto = (hash === (cfg.pin_hash || DEFAULT_PIN_HASH));
+
+    // 2. Registrar intento en rate-limiter
+    if (typeof SullcairiSecurity !== 'undefined' && SullcairiSecurity.registrarIntentoPin) {
+      SullcairiSecurity.registrarIntentoPin(correcto);
+    }
+
+    if (correcto && typeof SullcairiSecurity !== 'undefined' && SullcairiSecurity.AdminSession) {
+      SullcairiSecurity.AdminSession.iniciar();
+    }
+
+    return correcto;
   },
 
   async cambiarPinAdmin(pinActual, pinNuevo) {
     const valido = await this.verificarPinAdmin(pinActual);
     if (!valido) throw new Error("El PIN actual es incorrecto.");
-    if (!SullcairiSecurity.isValid.pin(pinNuevo)) throw new Error("El nuevo PIN debe tener entre 4 y 16 dígitos.");
+    if (!SullcairiSecurity.isValid.pin(pinNuevo)) throw new Error("El nuevo PIN debe tener entre 4 y 8 dígitos.");
     const nuevoHash = await SullcairiSecurity.hashPin(pinNuevo);
     const cfg = await this.obtenerConfiguracion();
-    cfg.admin_pin_hash = nuevoHash;
+    cfg.pin_hash = nuevoHash;
     await this.guardarConfiguracion(cfg);
   },
 
@@ -314,169 +347,218 @@ const DB = {
     return mapa;
   },
 
-  async guardarTanque(producto, stock, capacidad) {
-    const t = {
-      producto,
-      stock: Number(stock),
-      capacidad: Number(capacidad || 1500),
-      alerta_naranja: 500,
-      alerta_roja: 250,
-      unidad: 'Gln',
+  async obtenerSiguienteVale() {
+    const vales = await IDB.getAll('vales');
+    if (!vales.length) return 1001;
+    const max = Math.max(...vales.map(v => Number(v.n_vale) || 0));
+    return max >= 1001 ? max + 1 : 1001;
+  },
+
+  async listarVales() {
+    const vales = await IDB.getAll('vales');
+    return vales.sort((a, b) => {
+      const fA = a.fecha || '';
+      const fB = b.fecha || '';
+      if (fA !== fB) return fB.localeCompare(fA);
+      return (Number(b.n_vale) || 0) - (Number(a.n_vale) || 0);
+    });
+  },
+
+  // Registro y Edición de Vale con Bloqueo de Manipulación de Campos
+  async guardarVale(vale) {
+    if (!vale) throw new Error("Datos de vale vacíos.");
+
+    // Validar cantidad y precio
+    const cantidad = parseFloat(vale.cantidad);
+    const precio = parseFloat(vale.precio);
+    if (!SullcairiSecurity.isValid.cantidad(cantidad)) {
+      throw new Error("Cantidad de galones inválida.");
+    }
+    if (!SullcairiSecurity.isValid.precio(precio)) {
+      throw new Error("Precio unitario inválido.");
+    }
+
+    // BLOQUEO ESTRICTO: El total SIEMPRE se calcula en backend/lógica de datos
+    const totalCalculado = Math.round(cantidad * precio * 100) / 100;
+
+    const id = vale.id ? Number(vale.id) : this.generarIdUnico();
+    const esNuevo = !vale.id;
+
+    // Verificar si es edición para calcular delta de combustible
+    let valePrevio = null;
+    if (!esNuevo) {
+      valePrevio = await IDB.get('vales', id);
+    }
+
+    const valeFinal = {
+      id,
+      fecha: vale.fecha,
+      n_vale: Number(vale.n_vale),
+      turno: vale.turno || 'T1 (Mañana)',
+      cliente: SullcairiSecurity.sanitize(vale.cliente || 'VENTA DIARIA'),
+      lugar: SEDE_OFICIAL, // Inmutable
+      telefono: SullcairiSecurity.sanitize(vale.telefono || ''),
+      placa: SullcairiSecurity.sanitize(vale.placa || '-'),
+      conductor: SullcairiSecurity.sanitize(vale.conductor || '-'),
+      producto: vale.producto,
+      cantidad,
+      precio,
+      total: totalCalculado,
+      grifero: SullcairiSecurity.sanitize(vale.grifero || 'YANET'),
+      estado: vale.estado || 'PENDIENTE',
+      observacion: SullcairiSecurity.sanitize(vale.observacion || ''),
+      creado_el: vale.creado_el || new Date().toISOString(),
       actualizado_el: new Date().toISOString()
     };
-    await IDB.put('tanques', t);
+
+    // Actualizar stock de tanques
+    const tanques = await this.obtenerTanques();
+    const t = tanques[valeFinal.producto];
+
+    if (t) {
+      if (esNuevo && valeFinal.estado !== 'ANULADO') {
+        t.stock = this.restarStock(t.stock, valeFinal.cantidad);
+        t.actualizado_el = new Date().toISOString();
+        await IDB.put('tanques', t);
+
+        // Auditoría
+        const dObj = new Date(valeFinal.fecha);
+        const mov = {
+          id: this.generarIdMovimiento(),
+          fecha_completa: new Date().toISOString(),
+          dia: dObj.getUTCDate() || 1,
+          mes: (dObj.getUTCMonth() + 1) || 1,
+          ano: dObj.getUTCFullYear() || 2026,
+          producto: valeFinal.producto,
+          tipo: 'DESPACHO',
+          cantidad: -valeFinal.cantidad,
+          saldo: t.stock,
+          motivo: `Vale #${valeFinal.n_vale} - ${valeFinal.cliente}`,
+          responsable: valeFinal.grifero
+        };
+        await IDB.put('movimientos_tanque', mov);
+      } else if (!esNuevo && valePrevio) {
+        // Revertir previo si estaba activo y aplicar nuevo si está activo
+        let stockTemp = t.stock;
+        if (valePrevio.estado !== 'ANULADO') {
+          stockTemp = this.sumarStock(stockTemp, valePrevio.cantidad, t.capacidad);
+        }
+        if (valeFinal.estado !== 'ANULADO') {
+          stockTemp = this.restarStock(stockTemp, valeFinal.cantidad);
+        }
+        t.stock = stockTemp;
+        t.actualizado_el = new Date().toISOString();
+        await IDB.put('tanques', t);
+      }
+    }
+
+    await IDB.put('vales', valeFinal);
+    if (typeof window.onDatosActualizados === 'function') window.onDatosActualizados();
+    return valeFinal;
+  },
+
+  // Alias para compatibilidad
+  async registrarVale(vale) {
+    return await this.guardarVale(vale);
+  },
+
+  async actualizarEstadoVale(id, nuevoEstado) {
+    const v = await IDB.get('vales', Number(id));
+    if (!v) throw new Error("Vale no encontrado.");
+
+    const estadoAnterior = v.estado;
+    if (estadoAnterior === nuevoEstado) return;
+
+    v.estado = nuevoEstado;
+    v.actualizado_el = new Date().toISOString();
+
+    const tanques = await this.obtenerTanques();
+    const t = tanques[v.producto];
+
+    if (t) {
+      if (nuevoEstado === 'ANULADO' && estadoAnterior !== 'ANULADO') {
+        // Reponer combustible al tanque con límite seguro
+        t.stock = this.sumarStock(t.stock, v.cantidad, t.capacidad);
+        t.actualizado_el = new Date().toISOString();
+        await IDB.put('tanques', t);
+
+        const dObj = new Date();
+        const mov = {
+          id: this.generarIdMovimiento(),
+          fecha_completa: dObj.toISOString(),
+          dia: dObj.getDate(),
+          mes: dObj.getMonth() + 1,
+          ano: dObj.getFullYear(),
+          producto: v.producto,
+          tipo: 'ANULACION',
+          cantidad: v.cantidad,
+          saldo: t.stock,
+          motivo: `Anulación Vale #${v.n_vale}`,
+          responsable: v.grifero || 'ADMINISTRADOR'
+        };
+        await IDB.put('movimientos_tanque', mov);
+      } else if (estadoAnterior === 'ANULADO' && nuevoEstado !== 'ANULADO') {
+        // Descontar nuevamente
+        t.stock = this.restarStock(t.stock, v.cantidad);
+        t.actualizado_el = new Date().toISOString();
+        await IDB.put('tanques', t);
+      }
+    }
+
+    await IDB.put('vales', v);
     if (typeof window.onDatosActualizados === 'function') window.onDatosActualizados();
   },
 
-  async modificarStockTanque(producto, nuevoStock, motivo, fecha) {
+  async eliminarVale(id) {
+    const v = await IDB.get('vales', Number(id));
+    if (v && v.estado !== 'ANULADO') {
+      const tanques = await this.obtenerTanques();
+      const t = tanques[v.producto];
+      if (t) {
+        t.stock = this.sumarStock(t.stock, v.cantidad, t.capacidad);
+        t.actualizado_el = new Date().toISOString();
+        await IDB.put('tanques', t);
+      }
+    }
+    await IDB.delete('vales', Number(id));
+    if (typeof window.onDatosActualizados === 'function') window.onDatosActualizados();
+  },
+
+  async registrarVarillajeFisico(producto, nuevoStock, motivo, responsable) {
     const tanques = await this.obtenerTanques();
     const t = tanques[producto] || { producto, capacidad: 1500, stock: 0 };
     const stockAnterior = t.stock;
-    const nuevo = Math.max(0, Number(nuevoStock));
+    const nuevo = Math.max(0, Math.min(Number(nuevoStock), t.capacidad));
     const dif = Math.round((nuevo - stockAnterior) * 100) / 100;
 
     t.stock = nuevo;
     t.actualizado_el = new Date().toISOString();
     await IDB.put('tanques', t);
 
-    // Registrar en auditoría de panel diario
-    const fParts = (fecha || new Date().toISOString().split('T')[0]).split('-');
-    const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-    const dObj = new Date(fecha || Date.now());
-    const diaNombre = dias[dObj.getDay()] || 'Día';
-
+    const dObj = new Date();
     const mov = {
-      id: 'mov_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-      dia: diaNombre,
-      fecha: `${fParts[2]}/${fParts[1]}`,
-      anio: parseInt(fParts[0], 10),
-      fecha_completa: fecha,
-      tipo: producto,
-      cantidad: Math.abs(dif),
-      diferencia: dif,
-      operacion: motivo || (dif >= 0 ? 'Recepción de Combustible / Ajuste' : 'Ajuste Varillaje'),
-      cliente: 'CONTROL INTERNO',
-      stock_resultante: nuevo,
-      creado_el: new Date().toISOString()
+      id: this.generarIdMovimiento(),
+      fecha_completa: dObj.toISOString(),
+      dia: dObj.getDate(),
+      mes: dObj.getMonth() + 1,
+      ano: dObj.getFullYear(),
+      producto,
+      tipo: dif >= 0 ? 'INGRESO / AJUSTE' : 'MERMA / AJUSTE',
+      cantidad: dif,
+      saldo: nuevo,
+      motivo: motivo || 'Varillaje Físico',
+      responsable: responsable || 'ADMINISTRADOR'
     };
 
-    await IDB.add('movimientos_tanque', mov);
+    await IDB.put('movimientos_tanque', mov);
     if (typeof window.onDatosActualizados === 'function') window.onDatosActualizados();
   },
 
-  async obtenerSiguienteVale() {
-    const vales = await IDB.getAll('vales');
-    if (!vales.length) return 401;
-    const max = Math.max(...vales.map(v => Number(v.n_vale) || 0));
-    return max >= 401 ? max + 1 : 401;
+  async modificarStockTanque(producto, nuevoStock, motivo, fecha) {
+    return await this.registrarVarillajeFisico(producto, nuevoStock, motivo, 'ADMINISTRADOR');
   },
 
-  async registrarVale(vale) {
-    vale.id = vale.id ? Number(vale.id) : Date.now();
-    vale.lugar = SEDE_OFICIAL;
-    vale.creado_el = vale.creado_el || new Date().toISOString();
-    vale.actualizado_el = new Date().toISOString();
-
-    // Guardar vale
-    await IDB.put('vales', vale);
-
-    // Descontar inventario de tanque si no está anulado
-    if (vale.estado !== 'ANULADO') {
-      const tanques = await this.obtenerTanques();
-      if (tanques[vale.producto]) {
-        const t = tanques[vale.producto];
-        const stockPrevio = t.stock;
-        t.stock = this.restarStock(t.stock, vale.cantidad);
-        t.actualizado_el = new Date().toISOString();
-        await IDB.put('tanques', t);
-
-        // Registrar en panel diario
-        const fParts = (vale.fecha || new Date().toISOString().split('T')[0]).split('-');
-        const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-        const dObj = new Date(vale.fecha);
-        const diaNombre = dias[dObj.getDay()] || 'Día';
-
-        const mov = {
-          id: 'mov_v_' + vale.id,
-          dia: diaNombre,
-          fecha: `${fParts[2]}/${fParts[1]}`,
-          anio: parseInt(fParts[0], 10),
-          fecha_completa: vale.fecha,
-          tipo: vale.producto,
-          cantidad: Number(vale.cantidad),
-          diferencia: -Number(vale.cantidad),
-          operacion: `Despacho Vale #${vale.n_vale} (${vale.turno})`,
-          cliente: vale.cliente,
-          stock_resultante: t.stock,
-          creado_el: new Date().toISOString()
-        };
-        await IDB.put('movimientos_tanque', mov);
-      }
-    }
-
-    // Agregar cliente o personal a listas maestras si no están
-    const cfg = await this.obtenerConfiguracion();
-    let modCfg = false;
-    if (vale.cliente && !cfg.clientes.includes(vale.cliente)) {
-      cfg.clientes.push(vale.cliente);
-      modCfg = true;
-    }
-    if (vale.grifero && !cfg.personal.includes(vale.grifero)) {
-      cfg.personal.push(vale.grifero);
-      modCfg = true;
-    }
-    if (modCfg) await this.guardarConfiguracion(cfg);
-
-    if (typeof window.onDatosActualizados === 'function') window.onDatosActualizados();
-    return vale.id;
-  },
-
-  async anularVale(id, motivo) {
-    const v = await IDB.get('vales', Number(id));
-    if (!v) return;
-    if (v.estado === 'ANULADO') return;
-
-    // Reponer combustible al tanque
-    const tanques = await this.obtenerTanques();
-    if (tanques[v.producto]) {
-      const t = tanques[v.producto];
-      t.stock = this.sumarStock(t.stock, v.cantidad, t.capacidad);
-      t.actualizado_el = new Date().toISOString();
-      await IDB.put('tanques', t);
-
-      // Movimiento auditoría
-      const fParts = v.fecha.split('-');
-      const mov = {
-        id: 'mov_anul_' + v.id,
-        dia: 'Anulado',
-        fecha: `${fParts[2]}/${fParts[1]}`,
-        anio: parseInt(fParts[0], 10),
-        fecha_completa: v.fecha,
-        tipo: v.producto,
-        cantidad: Number(v.cantidad),
-        diferencia: Number(v.cantidad),
-        operacion: `Reposición por Vale #${v.n_vale} Anulado (${motivo || 'Error'})`,
-        cliente: v.cliente,
-        stock_resultante: t.stock,
-        creado_el: new Date().toISOString()
-      };
-      await IDB.put('movimientos_tanque', mov);
-    }
-
-    v.estado = 'ANULADO';
-    v.observacion = (v.observacion ? v.observacion + ' | ' : '') + `ANULADO: ${motivo || 'Sin detalle'}`;
-    v.actualizado_el = new Date().toISOString();
-    await IDB.put('vales', v);
-
-    if (typeof window.onDatosActualizados === 'function') window.onDatosActualizados();
-  },
-
-  async eliminarVale(id) {
-    await IDB.delete('vales', Number(id));
-    if (typeof window.onDatosActualizados === 'function') window.onDatosActualizados();
-  },
-
-  async obtenerMetricas() {
+  async obtenerResumenGeneral() {
     const [vales, tanques] = await Promise.all([
       IDB.getAll('vales'),
       this.obtenerTanques()
@@ -494,8 +576,7 @@ const DB = {
     const rankingGrifMap = {};
 
     vales.forEach(v => {
-      const isAnulado = v.estado === 'ANULADO';
-      if (isAnulado) {
+      if (v.estado === 'ANULADO') {
         anulados++;
         return;
       }
@@ -574,12 +655,16 @@ const DB = {
       rankingPersonal,
       tanques
     };
+  },
+
+  async obtenerMetricas() {
+    return await this.obtenerResumenGeneral();
   }
 };
 
-// ========================================================
+// ====================================================================
 //  SINCRONIZACIÓN Y REALTIME CON SUPABASE CLOUD
-// ========================================================
+// ====================================================================
 async function verificarSupabase(mostrarToast = false) {
   if (!_supa) {
     actualizarBadgesSupabase(false);
@@ -700,25 +785,30 @@ async function sincronizarConSupabase(mostrarFeedback = true) {
         }
       });
 
-      // Subir vales locales a la nube por lotes
-      const paraSubir = Array.from(mapa.values()).map(v => ({
-        id: Number(v.id),
-        fecha: v.fecha,
-        n_vale: Number(v.n_vale),
-        turno: v.turno,
-        cliente: v.cliente,
-        lugar: SEDE_OFICIAL,
-        telefono: v.telefono || null,
-        placa: v.placa || '-',
-        conductor: v.conductor || '-',
-        producto: v.producto,
-        cantidad: Number(v.cantidad),
-        precio: Number(v.precio),
-        total: Number(v.total),
-        grifero: v.grifero || 'YANET',
-        estado: v.estado || 'PENDIENTE',
-        observacion: v.observacion || ''
-      }));
+      // Subir vales locales a la nube por lotes con cálculo forzado
+      const paraSubir = Array.from(mapa.values()).map(v => {
+        const cant = Number(v.cantidad);
+        const prec = Number(v.precio);
+        const tot = Math.round(cant * prec * 100) / 100;
+        return {
+          id: Number(v.id),
+          fecha: v.fecha,
+          n_vale: Number(v.n_vale),
+          turno: v.turno,
+          cliente: v.cliente,
+          lugar: SEDE_OFICIAL,
+          telefono: v.telefono || null,
+          placa: v.placa || '-',
+          conductor: v.conductor || '-',
+          producto: v.producto,
+          cantidad: cant,
+          precio: prec,
+          total: tot,
+          grifero: v.grifero || 'YANET',
+          estado: v.estado || 'PENDIENTE',
+          observacion: v.observacion || ''
+        };
+      });
 
       for (let i = 0; i < paraSubir.length; i += 200) {
         await _supa.from('vales').upsert(paraSubir.slice(i, i + 200), { onConflict: 'id' });

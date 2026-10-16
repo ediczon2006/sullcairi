@@ -4,65 +4,70 @@
 //  Sede Fija Oficial: jesus_de_lauricocha_huanuco
 // ========================================================
 
-const SQL_SCHEMA_SUPABASE = `-- TABLAS PARA ESTACIÓN DE SERVICIOS SULLCAIRI
--- Sede: jesus_de_lauricocha_huanuco
+const SQL_SCHEMA_SUPABASE = `-- TABLAS ENTERPRISE PARA ESTACIÓN DE SERVICIOS SULLCAIRI
+-- Sede Fija Oficial: jesus_de_lauricocha_huanuco
 -- Proyecto: gtfmhtrvsbfcftstbadj
+
+create extension if not exists "pgcrypto";
 
 create table if not exists public.vales (
   id bigint primary key,
   fecha date not null,
-  n_vale bigint not null,
-  turno text not null default 'T1 (Mañana)',
+  n_vale integer not null,
+  turno varchar(50) default 'T1 (Mañana)',
   cliente text not null,
-  lugar text not null default 'jesus_de_lauricocha_huanuco',
-  telefono text,
-  placa text default '-',
-  conductor text default '-',
-  producto text not null,
-  cantidad numeric(10,2) not null check (cantidad > 0),
-  precio numeric(10,2) not null check (precio > 0),
-  total numeric(10,2) not null check (total >= 0),
-  grifero text not null default 'YANET',
-  estado text not null default 'PENDIENTE',
+  lugar varchar(120) not null default 'jesus_de_lauricocha_huanuco',
+  telefono varchar(30),
+  placa varchar(20) default '-',
+  conductor varchar(120) default '-',
+  producto varchar(60) not null,
+  cantidad numeric(10,2) not null check (cantidad > 0 and cantidad <= 15000),
+  precio numeric(10,2) not null check (precio > 0 and precio <= 500),
+  total numeric(12,2) not null check (total >= 0 and total = round((cantidad * precio)::numeric, 2)),
+  grifero varchar(60) default 'YANET',
+  estado varchar(20) not null default 'PENDIENTE' check (estado in ('PENDIENTE', 'FACTURADO', 'ANULADO')),
   observacion text,
-  creado_el timestamptz default now()
+  creado_el timestamptz not null default timezone('America/Lima', now()),
+  actualizado_el timestamptz not null default timezone('America/Lima', now()),
+  constraint chk_lugar_sullcairi check (lugar = 'jesus_de_lauricocha_huanuco')
 );
 
 create table if not exists public.tanques (
-  producto text primary key,
-  capacidad numeric(10,2) not null,
-  stock numeric(10,2) not null,
+  producto varchar(60) primary key,
+  capacidad numeric(10,2) not null check (capacidad > 0),
+  stock numeric(10,2) not null check (stock >= 0 and stock <= capacidad),
   alerta_naranja numeric(10,2) not null default 500,
   alerta_roja numeric(10,2) not null default 250,
-  unidad text not null default 'Gln',
-  actualizado_el timestamptz default now()
+  unidad varchar(10) not null default 'Gln',
+  actualizado_el timestamptz not null default timezone('America/Lima', now())
 );
 
 create table if not exists public.movimientos_tanque (
   id text primary key,
-  fecha_completa timestamptz not null default now(),
-  dia integer not null,
-  mes integer not null,
-  ano integer not null,
-  producto text not null,
-  tipo text not null,
+  fecha_completa timestamptz not null default timezone('America/Lima', now()),
+  dia integer not null check (dia >= 1 and dia <= 31),
+  mes integer not null check (mes >= 1 and mes <= 12),
+  ano integer not null check (ano >= 2020),
+  producto varchar(60) not null,
+  tipo varchar(60) not null,
   cantidad numeric(10,2) not null,
-  saldo numeric(10,2) not null,
+  saldo numeric(10,2) not null check (saldo >= 0),
   motivo text,
-  responsable text
+  responsable varchar(60) default 'YANET'
 );
 
 create table if not exists public.configuracion (
   id text primary key default 'sullcairi_config',
   estacion_nombre text not null default 'ESTACIÓN DE SERVICIOS SULLCAIRI',
-  ruc text not null default '20608945123',
-  telefono text not null default '962123456',
-  sede text not null default 'jesus_de_lauricocha_huanuco',
-  precio_diesel numeric(10,2) not null default 16.80,
-  precio_premium numeric(10,2) not null default 19.50,
-  precio_regular numeric(10,2) not null default 17.20,
+  ruc varchar(20) not null default '20608945123',
+  telefono varchar(30) not null default '962123456',
+  sede varchar(120) not null default 'jesus_de_lauricocha_huanuco',
+  precio_diesel numeric(10,2) not null default 16.80 check (precio_diesel > 0),
+  precio_premium numeric(10,2) not null default 19.50 check (precio_premium > 0),
+  precio_regular numeric(10,2) not null default 17.20 check (precio_regular > 0),
   pin_hash text not null default '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4',
-  actualizado_el timestamptz default now()
+  actualizado_el timestamptz not null default timezone('America/Lima', now()),
+  constraint chk_sede_sullcairi check (sede = 'jesus_de_lauricocha_huanuco')
 );
 
 alter table public.vales enable row level security;
@@ -70,12 +75,37 @@ alter table public.tanques enable row level security;
 alter table public.movimientos_tanque enable row level security;
 alter table public.configuracion enable row level security;
 
-create policy "Acceso total a vales" on public.vales for all using (true) with check (true);
-create policy "Acceso total a tanques" on public.tanques for all using (true) with check (true);
-create policy "Acceso total a movimientos" on public.movimientos_tanque for all using (true) with check (true);
-create policy "Acceso total a configuracion" on public.configuracion for all using (true) with check (true);
+-- Políticas RLS estrictas
+drop policy if exists "RLS Vales Select" on public.vales;
+drop policy if exists "RLS Vales Insert" on public.vales;
+drop policy if exists "RLS Vales Update" on public.vales;
+drop policy if exists "RLS Vales Delete" on public.vales;
 
--- Semilla de tanques
+create policy "RLS Vales Select" on public.vales for select using (lugar = 'jesus_de_lauricocha_huanuco');
+create policy "RLS Vales Insert" on public.vales for insert with check (lugar = 'jesus_de_lauricocha_huanuco' and total = round((cantidad * precio)::numeric, 2));
+create policy "RLS Vales Update" on public.vales for update using (lugar = 'jesus_de_lauricocha_huanuco') with check (lugar = 'jesus_de_lauricocha_huanuco' and total = round((cantidad * precio)::numeric, 2));
+create policy "RLS Vales Delete" on public.vales for delete using (lugar = 'jesus_de_lauricocha_huanuco');
+
+drop policy if exists "RLS Tanques Select" on public.tanques;
+drop policy if exists "RLS Tanques Insert" on public.tanques;
+drop policy if exists "RLS Tanques Update" on public.tanques;
+
+create policy "RLS Tanques Select" on public.tanques for select using (true);
+create policy "RLS Tanques Insert" on public.tanques for insert with check (stock >= 0 and stock <= capacidad);
+create policy "RLS Tanques Update" on public.tanques for update using (true) with check (stock >= 0 and stock <= capacidad);
+
+drop policy if exists "RLS Movimientos Select" on public.movimientos_tanque;
+drop policy if exists "RLS Movimientos Insert" on public.movimientos_tanque;
+
+create policy "RLS Movimientos Select" on public.movimientos_tanque for select using (true);
+create policy "RLS Movimientos Insert" on public.movimientos_tanque for insert with check (saldo >= 0);
+
+drop policy if exists "RLS Config Select" on public.configuracion;
+drop policy if exists "RLS Config Update" on public.configuracion;
+
+create policy "RLS Config Select" on public.configuracion for select using (sede = 'jesus_de_lauricocha_huanuco');
+create policy "RLS Config Update" on public.configuracion for update using (sede = 'jesus_de_lauricocha_huanuco') with check (sede = 'jesus_de_lauricocha_huanuco');
+
 insert into public.tanques (producto, capacidad, stock, alerta_naranja, alerta_roja, unidad)
 values
   ('DIESEL B5-S50', 3000, 2150, 500, 250, 'Gln'),
@@ -83,7 +113,6 @@ values
   ('GASOHOL REGULAR', 1500, 980, 500, 250, 'Gln')
 on conflict (producto) do nothing;
 
--- Semilla de configuración
 insert into public.configuracion (id, estacion_nombre, ruc, telefono, sede, precio_diesel, precio_premium, precio_regular)
 values ('sullcairi_config', 'ESTACIÓN DE SERVICIOS SULLCAIRI', '20608945123', '962123456', 'jesus_de_lauricocha_huanuco', 16.80, 19.50, 17.20)
 on conflict (id) do nothing;

@@ -175,6 +175,9 @@ def validar_y_sanitizar_payload(datos: dict) -> dict:
         except Exception:
             raise ValueError(f"Fila {i + 1}: Precio unitario fuera de rango (0 - 500 S/).")
 
+        # Bloqueo estricto de manipulación de campo total
+        v["total"] = round(v["cantidad"] * v["precio"], 2)
+
         # Inmutabilidad de sede en cada registro
         v["lugar"] = SEDE_ESTATICA
 

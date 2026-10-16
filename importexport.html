@@ -176,6 +176,14 @@
     function procesarArchivoSeleccionado(file) {
       if (!file) return;
 
+      if (typeof SullcairiSecurity !== 'undefined' && SullcairiSecurity.isValid && SullcairiSecurity.isValid.archivo) {
+        const check = SullcairiSecurity.isValid.archivo(file, 10 * 1024 * 1024);
+        if (!check.valido) {
+          alert("⚠️ " + check.error);
+          return;
+        }
+      }
+
       const reader = new FileReader();
       reader.onload = e => {
         try {

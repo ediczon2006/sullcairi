@@ -44,6 +44,8 @@
         </div>
 
         <form id="formEmitirVale" onsubmit="guardarNuevoVale(event)">
+          <!-- Campo Honeypot Oculto (Protección contra Bots) -->
+          <input type="text" name="website_hp" id="website_hp" style="display:none !important;position:absolute;left:-9999px" tabindex="-1" autocomplete="off" />
           
           <!-- Bloque 1: Selección de Combustible -->
           <div style="margin-bottom:22px">
@@ -329,6 +331,11 @@
 
     async function guardarNuevoVale(e) {
       e.preventDefault();
+
+      if (typeof SullcairiSecurity !== 'undefined' && !SullcairiSecurity.validarHoneypot('website_hp')) {
+        alert("Envío bloqueado por protección contra bots.");
+        return;
+      }
 
       const n_vale = Number(document.getElementById('valeNumero').value);
       const fecha = document.getElementById('valeFecha').value;
