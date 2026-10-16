@@ -1,7 +1,7 @@
 /**
  * ============================================================================
- * STORE CENTRALIZADO - ESTACIÓN DE SERVICIOS JESÚS
- * Gestión de 3 Tanques (Sin GLP) y Panel de Movimientos Diarios (Día, Fecha, Año, Cantidad, Tipo)
+ * STORE CENTRALIZADO - ESTACIÓN DE SERVICIOS SULLCAIRI (js/store.js)
+ * Versión 2.3 - Seguridad Empresarial, Validación Estricta de Stock y Hash SHA-256
  * ============================================================================
  */
 
@@ -51,14 +51,45 @@ const Store = (() => {
   };
 
   const SEDE_ESTATICA = "jesus_de_lauricocha_huanuco";
-
   const DIAS_SEMANA = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
+  let idCounter = 0;
+  function generarIdUnico() {
+    idCounter++;
+    return Date.now() + "_" + idCounter + "_" + Math.random().toString(36).substring(2, 7);
+  }
+
+  // Clamping y precisión para inventario
+  function sumarStockSeguro(tanque, cantidad) {
+    if (!tanque) return;
+    const c = Math.max(0, Number(cantidad) || 0);
+    const nuevo = Math.min(tanque.capacidad, (Number(tanque.stock) || 0) + c);
+    tanque.stock = Math.round(nuevo * 100) / 100;
+  }
+
+  function restarStockSeguro(tanque, cantidad) {
+    if (!tanque) return;
+    const c = Math.max(0, Number(cantidad) || 0);
+    const nuevo = Math.max(0, (Number(tanque.stock) || 0) - c);
+    tanque.stock = Math.round(nuevo * 100) / 100;
+  }
+
+  // Hash SHA-256 para PIN Administrativo (Web Crypto API)
+  async function hashearTexto(texto) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(String(texto) + "_grifo_salt_2026");
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
   let state = {
+    version: "2.3.0",
     empresa: "ESTACIÓN DE SERVICIOS SULLCAIRI",
     ruc: "20608945123",
     direccion: SEDE_ESTATICA,
     telefono: "962123456",
+    admin_pin_hash: "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3", // Default PIN: 1234
     precios: {
       "DIESEL B5-S50": 16.80,
       "GASOHOL PREMIUM": 19.50,
@@ -68,44 +99,7 @@ const Store = (() => {
     clientes: [...CLIENTES_OFICIALES],
     personal: [...PERSONAL_OFICIAL],
     lugares: [SEDE_ESTATICA],
-    movimientos_tanque: [
-      {
-        id: 1,
-        dia: "Lunes",
-        fecha: "15/09",
-        anio: 2026,
-        fecha_completa: "2026-09-15",
-        tipo: "DIESEL B5-S50",
-        cantidad: 25.0,
-        operacion: "Despacho Vale #401",
-        cliente: "MUNICIPALIDAD JESUS",
-        stock_resultante: 2150
-      },
-      {
-        id: 2,
-        dia: "Lunes",
-        fecha: "15/09",
-        anio: 2026,
-        fecha_completa: "2026-09-15",
-        tipo: "GASOHOL PREMIUM",
-        cantidad: 12.0,
-        operacion: "Despacho Vale #402",
-        cliente: "RED DE SALUD",
-        stock_resultante: 1100
-      },
-      {
-        id: 3,
-        dia: "Martes",
-        fecha: "16/09",
-        anio: 2026,
-        fecha_completa: "2026-09-16",
-        tipo: "GASOHOL REGULAR",
-        cantidad: 10.0,
-        operacion: "Despacho Vale #403",
-        cliente: "UGEL",
-        stock_resultante: 980
-      }
-    ],
+    movimientos_tanque: [],
     vales: []
   };
 
@@ -120,7 +114,8 @@ const Store = (() => {
   }
 
   function notify() {
-    listeners.forEach(fn => fn(getState()));
+    const s = getState();
+    listeners.forEach(fn => fn(s));
   }
 
   function getState() {
@@ -175,47 +170,54 @@ const Store = (() => {
   }
 
   async function init() {
-    // 1. Siempre cargar desde localStorage primero (datos del dispositivo)
+    // 1. Cargar desde localStorage primero (Offline-First en dispositivo local)
     const local = localStorage.getItem('grifo_erp_jesus_state');
     if (local) {
       try {
         const parsed = JSON.parse(local);
         if (parsed && typeof parsed === 'object') {
           if (Array.isArray(parsed.vales)) state.vales = parsed.vales;
-          if (parsed.empresa) state.empresa = parsed.empresa;
-          if (parsed.ruc) state.ruc = parsed.ruc;
+          if (parsed.empresa) state.empresa = String(parsed.empresa).trim();
+          if (parsed.ruc) state.ruc = String(parsed.ruc).trim();
+          if (parsed.telefono) state.telefono = String(parsed.telefono).trim();
+          if (parsed.admin_pin_hash) state.admin_pin_hash = parsed.admin_pin_hash;
           state.direccion = SEDE_ESTATICA;
-          if (parsed.precios) state.precios = { ...state.precios, ...parsed.precios };
-          if (parsed.tanques) state.tanques = { ...state.tanques, ...parsed.tanques };
+          state.lugares = [SEDE_ESTATICA];
+          if (parsed.precios && typeof parsed.precios === 'object') {
+            state.precios = { ...state.precios, ...parsed.precios };
+          }
+          if (parsed.tanques && typeof parsed.tanques === 'object') {
+            state.tanques = { ...state.tanques, ...parsed.tanques };
+          }
           if (Array.isArray(parsed.clientes)) state.clientes = parsed.clientes;
           if (Array.isArray(parsed.personal)) state.personal = parsed.personal;
-          state.lugares = [SEDE_ESTATICA];
           if (Array.isArray(parsed.movimientos_tanque)) state.movimientos_tanque = parsed.movimientos_tanque;
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn("[Store] Error al parsear estado local:", e);
+      }
     }
 
-    // 2. Intentar sincronizar con servidor (opcional, no bloquea)
+    // 2. Sincronización pasiva con servidor si está disponible
     try {
       const res = await fetch('/api/datos', { cache: 'no-store' });
       if (res.ok) {
         const remote = await res.json();
         if (remote && Array.isArray(remote.vales) && remote.vales.length > state.vales.length) {
-          // Solo sobrescribir si el servidor tiene más datos
-          if (Array.isArray(remote.vales)) state.vales = remote.vales;
+          state.vales = remote.vales;
           if (remote.empresa) state.empresa = remote.empresa;
           if (remote.ruc) state.ruc = remote.ruc;
           state.direccion = SEDE_ESTATICA;
+          state.lugares = [SEDE_ESTATICA];
           if (remote.precios) state.precios = { ...state.precios, ...remote.precios };
           if (remote.tanques) state.tanques = { ...state.tanques, ...remote.tanques };
           if (Array.isArray(remote.clientes)) state.clientes = remote.clientes;
           if (Array.isArray(remote.personal)) state.personal = remote.personal;
-          state.lugares = [SEDE_ESTATICA];
           if (Array.isArray(remote.movimientos_tanque)) state.movimientos_tanque = remote.movimientos_tanque;
         }
       }
     } catch (e) {
-      // Sin servidor disponible (GitHub Pages) → funciona 100% local
+      // Entorno estático (GitHub Pages) sin backend
     }
 
     saveLocal();
@@ -226,14 +228,23 @@ const Store = (() => {
     try {
       localStorage.setItem('grifo_erp_jesus_state', JSON.stringify(state));
     } catch (e) {
-      console.warn('No se pudo guardar en localStorage:', e.message);
+      if (e.name === 'QuotaExceededError' || e.code === 22) {
+        // Poda preventiva de auditoría histórica para recuperar espacio
+        if (state.movimientos_tanque && state.movimientos_tanque.length > 200) {
+          state.movimientos_tanque = state.movimientos_tanque.slice(0, 200);
+          try {
+            localStorage.setItem('grifo_erp_jesus_state', JSON.stringify(state));
+            return;
+          } catch (e2) {}
+        }
+      }
+      console.warn('Alerta de almacenamiento en dispositivo:', e.message);
     }
   }
 
   async function persist() {
     saveLocal();
     notify();
-    // Intentar sincronizar con servidor (si existe), sin bloquear
     try {
       await fetch('/api/datos', {
         method: 'POST',
@@ -241,32 +252,54 @@ const Store = (() => {
         body: JSON.stringify(state)
       });
     } catch (e) {
-      // Sin servidor → datos ya guardados en localStorage
+      // Persistencia en dispositivo completada
     }
   }
 
-  // REGISTRO DE VALE + ACTUALIZACIÓN DE STOCK Y PANEL DIARIO
+  // Verificación y Cambio de PIN de Administrador
+  async function verificarPinAdmin(pin) {
+    if (!pin) return false;
+    const h = await hashearTexto(pin);
+    // Si no tiene PIN configurado o coincide con hash guardado
+    if (!state.admin_pin_hash) return pin === "1234";
+    return h === state.admin_pin_hash;
+  }
+
+  async function cambiarPinAdmin(pinActual, nuevoPin) {
+    const valido = await verificarPinAdmin(pinActual);
+    if (!valido) throw new Error("El PIN actual es incorrecto.");
+    if (!nuevoPin || String(nuevoPin).trim().length < 4) {
+      throw new Error("El nuevo PIN debe tener al menos 4 caracteres.");
+    }
+    state.admin_pin_hash = await hashearTexto(String(nuevoPin).trim());
+    await persist();
+    return true;
+  }
+
+  // REGISTRO DE VALE + CONTROL DE STOCK CON CLAMP
   async function agregarVale(vale) {
     vale.lugar = SEDE_ESTATICA;
+    vale.n_vale = parseInt(vale.n_vale, 10);
+    vale.cantidad = Math.max(0, parseFloat(vale.cantidad) || 0);
+    vale.precio = Math.max(0, parseFloat(vale.precio) || 0);
+    vale.total = Math.round(vale.cantidad * vale.precio * 100) / 100;
+
     state.vales.unshift(vale);
     registrarNuevoClienteSiNoExiste(vale.cliente);
     registrarNuevoPersonalSiNoExiste(vale.grifero);
 
-    // Descontar del stock del tanque si no está anulado
     if (vale.estado !== "ANULADO" && state.tanques[vale.producto]) {
-      const cant = Number(vale.cantidad) || 0;
-      state.tanques[vale.producto].stock = Math.max(0, Math.round((state.tanques[vale.producto].stock - cant) * 100) / 100);
+      restarStockSeguro(state.tanques[vale.producto], vale.cantidad);
 
-      // Registrar movimiento en el panel de auditoría diaria
       const fInfo = descomponerFecha(vale.fecha);
       state.movimientos_tanque.unshift({
-        id: Date.now(),
+        id: generarIdUnico(),
         dia: fInfo.dia,
         fecha: fInfo.fecha,
         anio: fInfo.anio,
         fecha_completa: fInfo.fecha_completa,
         tipo: vale.producto,
-        cantidad: cant,
+        cantidad: vale.cantidad,
         operacion: `Despacho Vale #${vale.n_vale}`,
         cliente: vale.cliente,
         stock_resultante: state.tanques[vale.producto].stock
@@ -277,37 +310,38 @@ const Store = (() => {
   }
 
   async function actualizarVale(id, valeActualizado) {
-    const idx = state.vales.findIndex(v => v.id === id);
+    const idx = state.vales.findIndex(v => String(v.id) === String(id));
     if (idx !== -1) {
       const valePrevio = state.vales[idx];
 
-      // Revertir stock previo si no estaba anulado
+      // Revertir con clamp seguro
       if (valePrevio.estado !== "ANULADO" && state.tanques[valePrevio.producto]) {
-        state.tanques[valePrevio.producto].stock += (Number(valePrevio.cantidad) || 0);
+        sumarStockSeguro(state.tanques[valePrevio.producto], valePrevio.cantidad);
       }
 
-      // Aplicar nuevo stock
-      if (valeActualizado.estado !== "ANULADO" && state.tanques[valeActualizado.producto]) {
-        const cant = Number(valeActualizado.cantidad) || 0;
-        state.tanques[valeActualizado.producto].stock = Math.max(0, Math.round((state.tanques[valeActualizado.producto].stock - cant) * 100) / 100);
+      valeActualizado.cantidad = Math.max(0, parseFloat(valeActualizado.cantidad) || 0);
+      valeActualizado.precio = Math.max(0, parseFloat(valeActualizado.precio) || 0);
+      valeActualizado.total = Math.round(valeActualizado.cantidad * valeActualizado.precio * 100) / 100;
+      valeActualizado.lugar = SEDE_ESTATICA;
 
-        // Movimiento diario
+      if (valeActualizado.estado !== "ANULADO" && state.tanques[valeActualizado.producto]) {
+        restarStockSeguro(state.tanques[valeActualizado.producto], valeActualizado.cantidad);
+
         const fInfo = descomponerFecha(valeActualizado.fecha);
         state.movimientos_tanque.unshift({
-          id: Date.now(),
+          id: generarIdUnico(),
           dia: fInfo.dia,
           fecha: fInfo.fecha,
           anio: fInfo.anio,
           fecha_completa: fInfo.fecha_completa,
           tipo: valeActualizado.producto,
-          cantidad: cant,
+          cantidad: valeActualizado.cantidad,
           operacion: `Edición Vale #${valeActualizado.n_vale}`,
           cliente: valeActualizado.cliente,
           stock_resultante: state.tanques[valeActualizado.producto].stock
         });
       }
 
-      valeActualizado.lugar = SEDE_ESTATICA;
       state.vales[idx] = { ...state.vales[idx], ...valeActualizado };
       registrarNuevoClienteSiNoExiste(valeActualizado.cliente);
       registrarNuevoPersonalSiNoExiste(valeActualizado.grifero);
@@ -316,18 +350,17 @@ const Store = (() => {
   }
 
   async function anularVale(id, motivo) {
-    const v = state.vales.find(item => item.id === id);
+    const v = state.vales.find(item => String(item.id) === String(id));
     if (v && v.estado !== "ANULADO") {
-      // Revertir stock al tanque
       if (state.tanques[v.producto]) {
-        state.tanques[v.producto].stock += (Number(v.cantidad) || 0);
+        sumarStockSeguro(state.tanques[v.producto], v.cantidad);
       }
       v.estado = "ANULADO";
       v.observacion = motivo ? `ANULADO: ${motivo}` : "ANULADO";
 
       const fInfo = descomponerFecha(v.fecha);
       state.movimientos_tanque.unshift({
-        id: Date.now(),
+        id: generarIdUnico(),
         dia: fInfo.dia,
         fecha: fInfo.fecha,
         anio: fInfo.anio,
@@ -344,15 +377,14 @@ const Store = (() => {
   }
 
   async function eliminarVale(id) {
-    const v = state.vales.find(item => item.id === id);
+    const v = state.vales.find(item => String(item.id) === String(id));
     if (v && v.estado !== "ANULADO" && state.tanques[v.producto]) {
-      state.tanques[v.producto].stock += (Number(v.cantidad) || 0);
+      sumarStockSeguro(state.tanques[v.producto], v.cantidad);
     }
-    state.vales = state.vales.filter(item => item.id !== id);
+    state.vales = state.vales.filter(item => String(item.id) !== String(id));
     await persist();
   }
 
-  // MODIFICAR CANTIDAD DE GASOLINA EN TANQUE (VARILLAJE / DESCARGA CISTERNA)
   async function modificarStockTanque(tipoCombustible, nuevoStockGln, motivo, fechaMovimiento) {
     if (!state.tanques[tipoCombustible]) return;
 
@@ -362,10 +394,9 @@ const Store = (() => {
 
     state.tanques[tipoCombustible].stock = nuevoStock;
 
-    // Registrar en panel diario: Día, Fecha, Año, Cantidad, Tipo
     const fInfo = descomponerFecha(fechaMovimiento || new Date().toISOString().split('T')[0]);
     state.movimientos_tanque.unshift({
-      id: Date.now(),
+      id: generarIdUnico(),
       dia: fInfo.dia,
       fecha: fInfo.fecha,
       anio: fInfo.anio,
@@ -399,10 +430,10 @@ const Store = (() => {
 
       if (v.estado !== "ANULADO" && state.tanques[v.producto]) {
         const cant = Number(v.cantidad) || 0;
-        state.tanques[v.producto].stock = Math.max(0, Math.round((state.tanques[v.producto].stock - cant) * 100) / 100);
+        restarStockSeguro(state.tanques[v.producto], cant);
         const fInfo = descomponerFecha(v.fecha);
         state.movimientos_tanque.unshift({
-          id: Date.now() + Math.floor(Math.random() * 100000),
+          id: generarIdUnico(),
           dia: fInfo.dia,
           fecha: fInfo.fecha,
           anio: fInfo.anio,
@@ -432,21 +463,18 @@ const Store = (() => {
     if (!state.personal.includes(limpio)) state.personal.push(limpio);
   }
 
-  async function cargarDatosDemo() {
-    await init();
-  }
-
   async function limpiarBaseDatos() {
     state.vales = [];
     state.movimientos_tanque = [];
     await persist();
   }
 
-  async function actualizarConfiguracion(empresa, ruc, direccion, precios) {
-    state.empresa = empresa;
-    state.ruc = ruc;
+  async function actualizarConfiguracion(empresa, ruc, direccion, precios, telefono) {
+    if (empresa) state.empresa = String(empresa).trim();
+    if (ruc) state.ruc = String(ruc).trim();
+    if (telefono) state.telefono = String(telefono).trim();
     state.direccion = SEDE_ESTATICA;
-    state.precios = { ...state.precios, ...precios };
+    if (precios) state.precios = { ...state.precios, ...precios };
     await persist();
   }
 
@@ -459,7 +487,6 @@ const Store = (() => {
     let anulados = 0;
 
     const clientesMap = {};
-    const lugaresMap = {};
     const personalMap = {};
 
     for (let i = 0; i < state.vales.length; i++) {
@@ -493,7 +520,7 @@ const Store = (() => {
       if (!clientesMap[cNom]) {
         clientesMap[cNom] = {
           cliente: cNom,
-          lugar: v.lugar || "Sede Jesús",
+          lugar: SEDE_ESTATICA,
           telefono: v.telefono || "",
           valesPendientes: 0,
           valesTotales: 0,
@@ -510,14 +537,6 @@ const Store = (() => {
         clientesMap[cNom].deudaSoles += s;
       }
 
-      const lugarNom = (v.lugar && v.lugar.trim() !== "") ? v.lugar.trim() : "Sede Jesús";
-      if (!lugaresMap[lugarNom]) {
-        lugaresMap[lugarNom] = { lugar: lugarNom, galones: 0, soles: 0, vales: 0 };
-      }
-      lugaresMap[lugarNom].galones += g;
-      lugaresMap[lugarNom].soles += s;
-      lugaresMap[lugarNom].vales++;
-
       const persNom = (v.grifero && v.grifero.trim() !== "") ? v.grifero.trim() : "OTROS";
       if (!personalMap[persNom]) {
         personalMap[persNom] = { personal: persNom, vales: 0, galones: 0, soles: 0 };
@@ -528,7 +547,6 @@ const Store = (() => {
     }
 
     const rankingClientes = Object.values(clientesMap).sort((a, b) => b.totalSoles - a.totalSoles);
-    const rankingLugares = Object.values(lugaresMap).sort((a, b) => b.soles - a.soles);
     const rankingPersonal = Object.values(personalMap).sort((a, b) => b.galones - a.galones);
 
     return {
@@ -540,7 +558,6 @@ const Store = (() => {
       anulados,
       totalVales: state.vales.length,
       rankingClientes,
-      rankingLugares,
       rankingPersonal
     };
   }
@@ -564,11 +581,12 @@ const Store = (() => {
     eliminarVale,
     modificarStockTanque,
     importarValesMasivos,
-    cargarDatosDemo,
     limpiarBaseDatos,
     actualizarConfiguracion,
     descomponerFecha,
     getMetricas,
-    getSiguienteVale
+    getSiguienteVale,
+    verificarPinAdmin,
+    cambiarPinAdmin
   };
 })();

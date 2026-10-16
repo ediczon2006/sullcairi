@@ -1,5 +1,31 @@
-.DS_Store
+# Entorno y Dependencias
+.env
+.env.*
+*.env
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.log
+
+# Archivos de datos temporales y backups
 datos.json.tmp
+*.tmp
+*.bak
 backups/
+
+# Claves y secretos
+*.key
+*.pem
+*.cert
+*.p12
+*.secret
+id_rsa
+id_rsa.pub
+
+# Sistema Operativo y Editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace

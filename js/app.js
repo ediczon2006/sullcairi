@@ -368,7 +368,12 @@ const App = (() => {
         </td>
         <td style="text-align:center; white-space:nowrap;">
           ${tel && c.deudaSoles > 0 ? `
-            <button type="button" class="btn btn--whatsapp btn--sm" onclick="App.enviarCobranzaCliente('${escapeHtml(c.cliente)}', '${tel}', ${c.deudaSoles}, ${c.valesPendientes})">
+            <button type="button" class="btn btn--whatsapp btn--sm" 
+              data-cliente="${escapeHtml(c.cliente)}" 
+              data-tel="${escapeHtml(tel)}" 
+              data-deuda="${c.deudaSoles}" 
+              data-vales="${c.valesPendientes}"
+              onclick="App.enviarCobranzaCliente(this.getAttribute('data-cliente'), this.getAttribute('data-tel'), Number(this.getAttribute('data-deuda')), Number(this.getAttribute('data-vales')))">
               Cobrar por WhatsApp
             </button>
           ` : '<span style="color:#94a3b8; font-size:0.75rem;">Sin deuda</span>'}
@@ -422,7 +427,9 @@ const App = (() => {
           <span>Porcentaje: <strong>${pct}%</strong></span>
           <span>Alertas: <strong>500 Naranja / 250 Rojo</strong></span>
         </div>
-        <button type="button" class="btn btn--outline btn--sm" style="margin-top:12px; width:100%;" onclick="App.abrirModalModificarTanque('${escapeHtml(combustible)}')">
+        <button type="button" class="btn btn--outline btn--sm" style="margin-top:12px; width:100%;" 
+          data-combustible="${escapeHtml(combustible)}"
+          onclick="App.abrirModalModificarTanque(this.getAttribute('data-combustible'))">
           <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:13px; height:13px; display:inline-block; vertical-align:middle; margin-right:4px;"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
           Modificar Galones (Varillaje)
         </button>
@@ -551,6 +558,10 @@ const App = (() => {
       alert("Por favor ingrese una cantidad válida en galones.");
       return;
     }
+
+    // Verificación de Seguridad con PIN
+    const autorizado = await solicitarPinAdmin(`Ajuste de Varillaje / Stock en Tanque (${tipo})`);
+    if (!autorizado) return;
 
     const state = Store.getState();
     const t = state.tanques[tipo];
@@ -807,6 +818,25 @@ const App = (() => {
     const observacion = document.getElementById('input-obs').value.trim();
     const autoWA = document.getElementById('check-auto-wa').checked;
 
+    // Validación Estricta de Campos (Seguridad y Consistencia)
+    if (isNaN(n_vale) || n_vale <= 0 || n_vale > 99999999) {
+      alert("Por favor ingrese un N° de Vale válido (número entero positivo).");
+      document.getElementById('input-nvale').focus();
+      return;
+    }
+
+    if (cantidad <= 0 || cantidad > 20000) {
+      alert("La cantidad debe ser mayor a 0 y menor a 20,000 galones.");
+      document.getElementById('input-cantidad').focus();
+      return;
+    }
+
+    if (precio <= 0 || precio > 500) {
+      alert("El precio unitario debe ser mayor a 0 y menor a S/ 500.");
+      document.getElementById('input-precio').focus();
+      return;
+    }
+
     const state = Store.getState();
     const existeDuplicado = state.vales.some(v => Number(v.n_vale) === n_vale && String(v.id) !== String(editId));
     if (existeDuplicado) {
@@ -911,9 +941,34 @@ const App = (() => {
     inicializarFormularioVale();
   }
 
+  // Verificación de PIN Administrativo
+  async function solicitarPinAdmin(accionNombre) {
+    const pin = prompt(`[SEGURIDAD] Ingrese PIN de Administrador para:\n${accionNombre}\n(PIN por defecto: 1234)`, "");
+    if (!pin) return false;
+    const valido = await Store.verificarPinAdmin(pin.trim());
+    if (!valido) {
+      alert("PIN de Administrador incorrecto. Operación cancelada.");
+      return false;
+    }
+    return true;
+  }
+
+  async function cambiarPinSeguridad() {
+    const actual = prompt("Ingrese su PIN actual:", "");
+    if (!actual) return;
+    const nuevo = prompt("Ingrese nuevo PIN (mínimo 4 dígitos):", "");
+    if (!nuevo) return;
+    try {
+      await Store.cambiarPinAdmin(actual, nuevo);
+      mostrarToast("PIN de Administrador actualizado con éxito.");
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
+  }
+
   async function anularVale(id) {
     const state = Store.getState();
-    const v = state.vales.find(item => item.id === id);
+    const v = state.vales.find(item => String(item.id) === String(id));
     if (!v) return;
 
     const motivo = prompt(`Motivo de anulación para el Vale #${v.n_vale}:`, "Error de despacho / Vale roto");
@@ -925,10 +980,13 @@ const App = (() => {
 
   async function eliminarVale(id) {
     const state = Store.getState();
-    const v = state.vales.find(item => item.id === id);
+    const v = state.vales.find(item => String(item.id) === String(id));
     if (!v) return;
 
-    if (confirm(`¿Confirma eliminar definitivamente el Vale #${v.n_vale}?`)) {
+    const autorizado = await solicitarPinAdmin(`Eliminar definitivamente el Vale #${v.n_vale}`);
+    if (!autorizado) return;
+
+    if (confirm(`¿Confirma eliminar definitivamente el Vale #${v.n_vale}? Esta acción no se puede deshacer.`)) {
       await Store.eliminarVale(id);
       mostrarToast("Vale eliminado");
     }
@@ -963,7 +1021,7 @@ const App = (() => {
 
   function abrirModalWhatsApp(id) {
     const state = Store.getState();
-    const v = state.vales.find(item => item.id === id);
+    const v = state.vales.find(item => String(item.id) === String(id));
     if (!v) return;
 
     const tel = normalizarTelefono(v.telefono);
@@ -1014,7 +1072,7 @@ const App = (() => {
       `*ESTADO DE CUENTA - ${state.empresa}*\n\n` +
       `Estimado(a) *${cliente}*,\n` +
       `Le informamos que cuenta con *${cantVales} vales pendientes de pago* ` +
-      `por un importe total acumulado de *S/ ${totalDeuda.toFixed(2)}*.\n\n` +
+      `por un importe total acumulado de *S/ ${Number(totalDeuda).toFixed(2)}*.\n\n` +
       `Agradeceremos coordinar la liquidación. Saludos cordiales.`
     );
     abrirEnlaceWASeguro(tel, msg);
@@ -1022,8 +1080,7 @@ const App = (() => {
 
   function abrirEnlaceWASeguro(tel, msg) {
     const url = `https://api.whatsapp.com/send?phone=${tel}&text=${encodeURIComponent(msg)}`;
-    const win = window.open(url, '_blank', 'noopener,noreferrer');
-    if (win) win.opener = null;
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   function cerrarModalWA() {
@@ -1034,31 +1091,40 @@ const App = (() => {
   // 8. CONFIGURACIÓN
   async function guardarConfiguracionEmpresa(e) {
     e.preventDefault();
+    const autorizado = await solicitarPinAdmin("Modificar Configuración y Tarifas");
+    if (!autorizado) return;
+
     const emp = document.getElementById('cfg-empresa').value.trim();
     const ruc = document.getElementById('cfg-ruc').value.trim();
-    const dir = document.getElementById('cfg-direccion').value.trim();
+    const tel = document.getElementById('cfg-telefono').value.trim();
+    const dir = "jesus_de_lauricocha_huanuco";
     const precios = {
       "DIESEL B5-S50": parseFloat(document.getElementById('cfg-p-diesel').value) || 16.80,
       "GASOHOL PREMIUM": parseFloat(document.getElementById('cfg-p-premium').value) || 19.50,
       "GASOHOL REGULAR": parseFloat(document.getElementById('cfg-p-regular').value) || 17.20
     };
-    await Store.actualizarConfiguracion(emp, ruc, dir, precios);
+    await Store.actualizarConfiguracion(emp, ruc, dir, precios, tel);
     actualizarPrecioSegunCombustible();
     mostrarToast("Tarifas oficiales guardadas");
   }
 
   async function cargarDemostracion() {
-    if (confirm("¿Desea restaurar los datos de la Estación Jesús con los tanques, clientes y personal oficiales?")) {
-      await Store.cargarDatosDemo();
+    const autorizado = await solicitarPinAdmin("Restaurar Datos Oficiales");
+    if (!autorizado) return;
+    if (confirm("¿Desea restaurar los datos con los tanques, clientes y personal oficiales?")) {
+      await Store.init();
       mostrarToast("Datos restaurados correctamente");
       cambiarPestana('vales');
     }
   }
 
   async function limpiarTodo() {
-    if (confirm("¿Confirma vaciar los registros de vales de la base de datos?")) {
+    const autorizado = await solicitarPinAdmin("VACIAR Y LIMPIAR BASE DE DATOS");
+    if (!autorizado) return;
+
+    if (confirm("¿Confirma vaciar definitivamente todos los registros de vales de la base de datos?")) {
       await Store.limpiarBaseDatos();
-      mostrarToast("Sistema limpio y vacío");
+      mostrarToast("Base de datos limpia y vaciada");
     }
   }
 
@@ -1118,6 +1184,7 @@ const App = (() => {
     renderizarTablaVales,
     guardarConfiguracionEmpresa,
     cargarDemostracion,
-    limpiarTodo
+    limpiarTodo,
+    cambiarPinSeguridad
   };
 })();

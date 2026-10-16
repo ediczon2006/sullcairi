@@ -386,13 +386,17 @@ const Exporter = (() => {
   }
 
   function exportarCSV(filas, filename) {
-    if (filas.length === 0) return;
+    if (!filas || filas.length === 0) return;
     const cabeceras = Object.keys(filas[0]);
     const lineas = [cabeceras.join(";")];
 
     filas.forEach(row => {
       const valores = cabeceras.map(col => {
         let val = row[col] !== undefined ? String(row[col]) : "";
+        // Mitigar inyección de fórmulas CSV (=, +, -, @)
+        if (/^[\=\+\-\@]/.test(val)) {
+          val = "'" + val;
+        }
         val = val.replace(/"/g, '""');
         return `"${val}"`;
       });
@@ -402,15 +406,38 @@ const Exporter = (() => {
     const csvContent = "\uFEFF" + lineas.join("\r\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
+    const objectUrl = URL.createObjectURL(blob);
+    link.href = objectUrl;
     link.download = filename;
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
+    // Liberar memoria inmediatamente
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+  }
+
+  // 4. EXPORTAR RESPALDO COMPLETO DEL DISPOSITIVO (JSON)
+  function exportarRespaldoJSON() {
+    const state = Store.getState();
+    const fechaHoy = new Date().toISOString().split('T')[0];
+    const filename = `Respaldo_Grifo_${fechaHoy}.json`;
+    const dataStr = JSON.stringify(state, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json;charset=utf-8;' });
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
   }
 
   return {
     exportarExcel,
     descargarPlantillaExcel,
     procesarArchivoExcel,
-    exportarCSV
+    exportarCSV,
+    exportarRespaldoJSON
   };
 })();

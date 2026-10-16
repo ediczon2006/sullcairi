@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Estación de Servicios Jesús - Control de Vales y Combustible ERP</title>
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com data: blob:; img-src 'self' data: https: blob:; object-src 'none'; base-uri 'self';">
+  <title>Estación de Servicios Sullcairi - Control de Vales y Combustible ERP</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
@@ -34,6 +37,10 @@
         <button type="button" class="btn btn--dark-ghost btn--sm" onclick="Exporter.exportarExcel()" title="Sacar y descargar toda la información en Excel">
           <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
           Descargar Excel
+        </button>
+        <button type="button" class="btn btn--dark-ghost btn--sm" onclick="Exporter.exportarRespaldoJSON()" title="Exportar archivo de respaldo JSON para compartir o guardar">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+          Respaldo JSON
         </button>
         <button type="button" class="btn btn--dark-ghost btn--sm" onclick="App.cargarDemostracion()" title="Recargar datos oficiales de la estación">
           Restaurar Datos
@@ -501,12 +508,12 @@
               <input type="text" id="cfg-ruc" class="form-input">
             </div>
             <div class="form-item">
-              <label>Dirección:</label>
-              <input type="text" id="cfg-direccion" class="form-input">
+              <label>Sede Operativa (Inmutable):</label>
+              <input type="text" id="cfg-direccion" class="form-input" value="jesus_de_lauricocha_huanuco" readonly style="background:#f1f5f9; cursor:not-allowed; font-weight:700; color:#0369a1;">
             </div>
             <div class="form-item">
-              <label>Teléfono:</label>
-              <input type="text" id="cfg-telefono" class="form-input">
+              <label>Teléfono Oficial:</label>
+              <input type="text" id="cfg-telefono" class="form-input" placeholder="962123456">
             </div>
           </div>
 
@@ -528,7 +535,10 @@
             </div>
           </div>
 
-          <div style="display:flex; justify-content:flex-end; margin-top:22px; padding-top:14px; border-top:1px solid var(--slate-200);">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-top:22px; padding-top:14px; border-top:1px solid var(--slate-200);">
+            <button type="button" class="btn btn--outline" onclick="App.cambiarPinSeguridad()" title="Cambiar clave PIN de Administrador para proteger operaciones críticas">
+              🔒 Cambiar PIN de Administrador
+            </button>
             <button type="submit" class="btn btn--primary">
               Guardar Tarifas
             </button>
