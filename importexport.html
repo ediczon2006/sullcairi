@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <link rel="icon" type="image/png" href="img/logo.png"/>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ESTACIÓN SULLCAIRI — Importar / Exportar</title>
+  <link rel="stylesheet" href="css/app.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+  <!-- SIDEBAR -->
+  <nav id="sidebar"></nav>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main id="main">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+      <div class="page-header" style="margin-bottom:0">
+        <h2>📊 Importar / Exportar Datos &amp; Respaldos</h2>
+        <p>Carga masiva de vales desde Excel (.xlsx/.csv), migración de datos y copias de seguridad de Estación Sullcairi</p>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="descargarPlantillaCsv()" style="background:#0284C7;border-color:#0284C7">
+          📥 Descargar Plantilla Modelo (.csv)
+        </button>
+        <button class="btn btn-outline" onclick="sincronizarConSupabase(true)">
+          ☁️ Sincronizar Nube
+        </button>
+      </div>
+    </div>
+
+    <!-- Módulo 1: Carga y Procesamiento de Excel / CSV -->
+    <div class="card" style="margin-bottom:22px;border:1.5px solid var(--borde)">
+      <div class="card-title">
+        <span>📁 Cargar Archivo Excel (.xlsx / .csv)</span>
+        <span class="badge badge-act" style="font-size:0.75rem">Detección Inteligente de Columnas</span>
+      </div>
+
+      <div style="border:2px dashed #CBD5E1;border-radius:14px;padding:32px 20px;text-align:center;background:#F8FAFC;cursor:pointer;transition:border-color 0.2s ease" id="dropZone" onclick="document.getElementById('inputExcelFile').click()">
+        <span style="font-size:2.8rem;display:block;margin-bottom:10px">📄</span>
+        <strong style="font-size:1.05rem;color:var(--azul);display:block">
+          Arrastra tu archivo Excel aquí o haz clic para seleccionarlo
+        </strong>
+        <p style="font-size:0.82rem;color:var(--gris);margin:6px 0 16px">
+          Soporta libros de Excel (.xlsx, .xls) y archivos separados por comas (.csv)
+        </p>
+        <button type="button" class="btn btn-outline btn-sm" style="background:#fff">
+          Examinar Archivo
+        </button>
+        <input type="file" id="inputExcelFile" accept=".xlsx, .xls, .csv" style="display:none" onchange="procesarArchivoSeleccionado(this.files[0])" />
+      </div>
+
+      <!-- Vista Previa de Vales a Importar -->
+      <div id="seccionPreview" style="display:none;margin-top:22px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px">
+          <div>
+            <h4 style="font-size:0.95rem;color:var(--azul);margin:0">
+              🔍 Vista Previa: <strong id="lblTotalPreview">0</strong> registros detectados
+            </h4>
+            <span style="font-size:0.78rem;color:var(--gris)" id="lblResumenPreview"></span>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-outline btn-sm" onclick="cancelarPreview()">Cancelar</button>
+            <button class="btn btn-primary btn-sm" id="btnConfirmarImportacion" onclick="guardarValesImportados()" style="background:#EA580C;border-color:#C2410C">
+              💾 Confirmar e Importar a Base de Datos
+            </button>
+          </div>
+        </div>
+
+        <div class="table-wrap" style="max-height:360px;overflow-y:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>N° Vale</th>
+                <th>Fecha</th>
+                <th>Turno</th>
+                <th>Cliente</th>
+                <th>Placa</th>
+                <th>Combustible</th>
+                <th>Galones</th>
+                <th>Precio</th>
+                <th>Total Soles</th>
+                <th>Grifero</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyPreview"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Módulo 2 y 3: Respaldos JSON y Exportación Global -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:20px;margin-bottom:24px">
+      <!-- Módulo 2: Descargar Todo el Sistema -->
+      <div class="card">
+        <div class="card-title">
+          <span>💾 Copia de Seguridad Completa (JSON)</span>
+        </div>
+        <p style="font-size:0.83rem;color:var(--gris);line-height:1.5;margin-bottom:16px">
+          Exporta una copia íntegra con todos los vales, tanques, arqueos diarios y configuración oficial para resguardarla en tu computadora o pendrive.
+        </p>
+        <button class="btn btn-primary btn-full" onclick="descargarBackupJson()" style="background:#0F2A4A;border-color:#0F2A4A">
+          📥 Descargar Copia de Respaldo (.json)
+        </button>
+      </div>
+
+      <!-- Módulo 3: Restaurar Copia de Seguridad -->
+      <div class="card">
+        <div class="card-title">
+          <span>🔄 Restaurar Copia de Seguridad</span>
+        </div>
+        <p style="font-size:0.83rem;color:var(--gris);line-height:1.5;margin-bottom:16px">
+          Restaura la información desde un archivo de respaldo .json. Requiere confirmación con PIN de administrador.
+        </p>
+        <button class="btn btn-outline btn-full" onclick="document.getElementById('inputBackupJson').click()">
+          📤 Seleccionar Archivo de Respaldo (.json)
+        </button>
+        <input type="file" id="inputBackupJson" accept=".json" style="display:none" onchange="restaurarBackupJson(this.files[0])" />
+      </div>
+    </div>
+
+    <!-- Modal PIN para Restaurar Respaldo -->
+    <div id="modalPinRestaurar" class="modal-bg">
+      <div class="modal" style="max-width:400px;text-align:center">
+        <div class="modal-header">
+          <h3>🔒 Autorización de Restauración</h3>
+          <button class="modal-close" onclick="cerrarModal('modalPinRestaurar')">✕</button>
+        </div>
+        <p style="font-size:0.85rem;color:var(--gris);margin-bottom:16px">
+          Restaurar reemplazará o fusionará los registros actuales. Ingrese el PIN de Administrador para autorizar:
+        </p>
+        <input type="password" id="inputPinRestaurar" class="form-input" placeholder="PIN (1234)" maxlength="8" style="text-align:center;font-size:1.3rem;letter-spacing:4px;margin-bottom:18px" />
+        <div style="display:flex;gap:10px">
+          <button type="button" class="btn btn-outline btn-full" onclick="cerrarModal('modalPinRestaurar')">Cancelar</button>
+          <button type="button" class="btn btn-danger btn-full" id="btnConfirmarRestauracion">Restaurar Ahora</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="js/security.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/sidebar.js"></script>
+  <script>
+    let _valesParaImportar = [];
+    let _backupParaRestaurar = null;
+
+    // Configurar Drag and Drop en DropZone
+    const dropZone = document.getElementById('dropZone');
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, e => {
+        e.preventDefault();
+        dropZone.style.borderColor = '#EA580C';
+        dropZone.style.background = '#FFF7ED';
+      }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, e => {
+        e.preventDefault();
+        dropZone.style.borderColor = '#CBD5E1';
+        dropZone.style.background = '#F8FAFC';
+      }, false);
+    });
+
+    dropZone.addEventListener('drop', e => {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      if (files.length > 0) procesarArchivoSeleccionado(files[0]);
+    });
+
+    function procesarArchivoSeleccionado(file) {
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          const jsonRows = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+
+          if (!jsonRows || jsonRows.length === 0) {
+            alert("El archivo seleccionado está vacío o no contiene filas con datos.");
+            return;
+          }
+
+          mapearYValidarFilas(jsonRows);
+        } catch (err) {
+          alert("Error al leer el archivo Excel: " + err.message);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function mapearYValidarFilas(rows) {
+      _valesParaImportar = [];
+      let correlativoDefault = Date.now();
+
+      rows.forEach((r, idx) => {
+        // Encontrar columna de N° Vale
+        const nValeVal = r['N_VALE'] || r['VALE'] || r['N° VALE'] || r['NUMERO'] || r['VALES'] || (idx + 1);
+        const n_vale = parseInt(nValeVal, 10) || (idx + 1);
+
+        // Fecha
+        let fecha = r['FECHA'] || r['DIA'] || new Date().toISOString().slice(0, 10);
+        if (typeof fecha === 'number') {
+          // Fecha serial de Excel
+          const dateObj = new Date(Math.round((fecha - 25569) * 86400 * 1000));
+          fecha = dateObj.toISOString().slice(0, 10);
+        } else if (typeof fecha === 'string' && fecha.includes('/')) {
+          const parts = fecha.split('/');
+          if (parts.length === 3) {
+            fecha = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+          }
+        }
+
+        // Cliente
+        const cliente = sanitizeString(String(r['CLIENTE'] || r['INSTITUCION'] || r['RAZON SOCIAL'] || 'VENTA DIARIA').trim().toUpperCase());
+
+        // Combustible / Producto
+        let prod = String(r['PRODUCTO'] || r['COMBUSTIBLE'] || r['TIPO'] || 'DIESEL B5-S50').trim().toUpperCase();
+        if (prod.includes('PREMIUM')) prod = 'GASOHOL PREMIUM';
+        else if (prod.includes('REGULAR')) prod = 'GASOHOL REGULAR';
+        else prod = 'DIESEL B5-S50';
+
+        // Cantidad / Galones
+        const cantVal = r['CANTIDAD_GLN'] || r['CANTIDAD'] || r['GALONES'] || r['GLN'] || 0;
+        const cantidad = parseFloat(String(cantVal).replace(',', '.')) || 0;
+
+        // Precio Unitario
+        let precioVal = r['PRECIO_UNIT'] || r['PRECIO'] || r['P.UNIT'] || 0;
+        let precio = parseFloat(String(precioVal).replace(',', '.')) || 0;
+        if (!precio || precio <= 0) {
+          precio = PRECIOS_DEFAULT[prod] || 16.80;
+        }
+
+        // Total
+        let totalVal = r['TOTAL_SOLES'] || r['TOTAL'] || r['IMPORTE'] || 0;
+        let total = parseFloat(String(totalVal).replace(',', '.')) || 0;
+        if (!total || total <= 0) {
+          total = Number((cantidad * precio).toFixed(2));
+        }
+
+        // Otros campos
+        const turno = r['TURNO'] || 'T1 (Mañana)';
+        const placa = sanitizeString(String(r['PLACA'] || '-').trim().toUpperCase()) || '-';
+        const conductor = sanitizeString(String(r['CONDUCTOR'] || r['CHOFER'] || '-').trim().toUpperCase()) || '-';
+        const grifero = sanitizeString(String(r['GRIFERO'] || r['PERSONAL'] || 'YANET').trim().toUpperCase()) || 'YANET';
+        let estado = String(r['ESTADO'] || 'PENDIENTE').trim().toUpperCase();
+        if (!['PENDIENTE', 'FACTURADO', 'ANULADO'].includes(estado)) estado = 'PENDIENTE';
+        const observacion = sanitizeString(String(r['OBSERVACION'] || r['NOTAS'] || '').trim());
+
+        if (cantidad > 0) {
+          _valesParaImportar.push({
+            id: Date.now() + idx + Math.floor(Math.random() * 1000),
+            n_vale,
+            fecha,
+            turno,
+            cliente,
+            lugar: 'jesus_de_lauricocha_huanuco',
+            telefono: '',
+            placa,
+            conductor,
+            producto: prod,
+            cantidad,
+            precio,
+            total,
+            grifero,
+            estado,
+            observacion
+          });
+        }
+      });
+
+      mostrarPreview();
+    }
+
+    function mostrarPreview() {
+      const seccion = document.getElementById('seccionPreview');
+      const tbody = document.getElementById('tbodyPreview');
+      const total = _valesParaImportar.length;
+
+      document.getElementById('lblTotalPreview').textContent = total.toLocaleString();
+      const sumGln = _valesParaImportar.reduce((s, v) => s + v.cantidad, 0);
+      const sumSoles = _valesParaImportar.reduce((s, v) => s + v.total, 0);
+      document.getElementById('lblResumenPreview').textContent = `Total Galones: ${sumGln.toFixed(2)} GL | Total Importe: S/. ${sumSoles.toFixed(2)}`;
+
+      tbody.innerHTML = _valesParaImportar.slice(0, 50).map(v => `
+        <tr>
+          <td><strong style="color:var(--azul)">#${v.n_vale}</strong></td>
+          <td>${v.fecha}</td>
+          <td><small>${v.turno}</small></td>
+          <td><strong>${esc(v.cliente)}</strong></td>
+          <td>${esc(v.placa)}</td>
+          <td><span class="badge" style="background:#E0F2FE;color:#0284C7">${v.producto}</span></td>
+          <td><strong>${v.cantidad.toFixed(2)} GL</strong></td>
+          <td>S/. ${v.precio.toFixed(2)}</td>
+          <td style="font-weight:800;color:var(--azul)">S/. ${v.total.toFixed(2)}</td>
+          <td><small>${esc(v.grifero)}</small></td>
+          <td><span class="badge ${v.estado === 'PENDIENTE' ? 'badge-pend' : 'badge-act'}">${v.estado}</span></td>
+        </tr>
+      `).join('');
+
+      seccion.style.display = 'block';
+      seccion.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function cancelarPreview() {
+      _valesParaImportar = [];
+      document.getElementById('seccionPreview').style.display = 'none';
+      document.getElementById('inputExcelFile').value = '';
+    }
+
+    async function guardarValesImportados() {
+      if (_valesParaImportar.length === 0) return;
+
+      const btn = document.getElementById('btnConfirmarImportacion');
+      btn.disabled = true;
+      btn.textContent = '⏳ Importando registros...';
+
+      try {
+        for (const v of _valesParaImportar) {
+          await DB.guardarVale(v);
+        }
+
+        mostrarNotificacionToast(`✅ ¡${_valesParaImportar.length} vales importados exitosamente!`, 'success');
+        cancelarPreview();
+
+        // Opcional: sincronizar a la nube
+        sincronizarConSupabase(false);
+      } catch (err) {
+        alert("Error al importar vales: " + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '💾 Confirmar e Importar a Base de Datos';
+      }
+    }
+
+    function descargarPlantillaCsv() {
+      const csv = `\uFEFFN_VALE,FECHA,TURNO,CLIENTE,LUGAR,PLACA,CONDUCTOR,PRODUCTO,CANTIDAD_GLN,PRECIO_UNIT,TOTAL_SOLES,GRIFERO,ESTADO,OBSERVACION
+1001,2026-10-15,T1 (Mañana),UGEL,jesus_de_lauricocha_huanuco,EA-4521,JUAN LOPEZ,DIESEL B5-S50,15.50,16.80,260.40,YANET,PENDIENTE,Camioneta institucional
+1002,2026-10-15,T1 (Mañana),RED DE SALUD,jesus_de_lauricocha_huanuco,EUA-102,CARLOS PEREZ,GASOHOL PREMIUM,10.00,19.50,195.00,YANET,PENDIENTE,Ambulancia de guardia
+1003,2026-10-15,T2 (Tarde),CONSORCIO VIAL JESUS,jesus_de_lauricocha_huanuco,W3K-789,MARIO RIOS,DIESEL B5-S50,50.00,16.80,840.00,CRESILDO,FACTURADO,Volquete obra
+`;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Plantilla_Vales_Sullcairi.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    async function descargarBackupJson() {
+      try {
+        const [vales, tanques, cfg, movs] = await Promise.all([
+          IDB.getAll('vales'),
+          IDB.getAll('tanques'),
+          DB.obtenerConfiguracion(),
+          IDB.getAll('movimientos_tanque')
+        ]);
+
+        const backup = {
+          sistema: 'ESTACIÓN DE SERVICIOS SULLCAIRI ERP',
+          version: '2.0',
+          sede: 'jesus_de_lauricocha_huanuco',
+          fecha_exportacion: new Date().toISOString(),
+          vales,
+          tanques,
+          configuracion: cfg,
+          movimientos_tanque: movs
+        };
+
+        const str = JSON.stringify(backup, null, 2);
+        const blob = new Blob([str], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Backup_Sullcairi_${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        mostrarNotificacionToast("💾 Copia de respaldo JSON descargada.", 'success');
+      } catch (err) {
+        alert("Error al crear copia de respaldo: " + err.message);
+      }
+    }
+
+    function restaurarBackupJson(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          _backupParaRestaurar = JSON.parse(e.target.result);
+          if (!_backupParaRestaurar.vales || !Array.isArray(_backupParaRestaurar.vales)) {
+            alert("El archivo seleccionado no tiene el formato de respaldo de Estación Sullcairi.");
+            return;
+          }
+
+          document.getElementById('inputPinRestaurar').value = '';
+          abrirModal('modalPinRestaurar');
+        } catch (err) {
+          alert("Error al leer archivo JSON: " + err.message);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    document.getElementById('btnConfirmarRestauracion').onclick = async () => {
+      const pin = document.getElementById('inputPinRestaurar').value.trim();
+      const ok = await DB.verificarPinAdmin(pin);
+      if (!ok) {
+        alert("❌ PIN de Administrador incorrecto.");
+        return;
+      }
+
+      cerrarModal('modalPinRestaurar');
+      try {
+        // Restaurar vales
+        for (const v of _backupParaRestaurar.vales) {
+          await IDB.put('vales', v);
+        }
+        // Restaurar tanques si existen
+        if (Array.isArray(_backupParaRestaurar.tanques)) {
+          for (const t of _backupParaRestaurar.tanques) {
+            await IDB.put('tanques', t);
+          }
+        }
+        mostrarNotificacionToast("✅ Respaldo restaurado con éxito.", 'success');
+        sincronizarConSupabase(false);
+      } catch (err) {
+        alert("Error al restaurar: " + err.message);
+      }
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      renderSidebar('importexport');
+    });
+  </script>
+</body>
+</html>

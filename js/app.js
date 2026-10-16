@@ -43,35 +43,62 @@ const App = (() => {
       renderizarTodo(state);
       // Mantener actualizado el número correlativo sugerido si no se está editando
       const nValeInput = document.getElementById('input-nvale');
-      const editId = document.getElementById('edit-id').value;
+      const editIdEl = document.getElementById('edit-id');
+      const editId = editIdEl ? editIdEl.value : '';
       if (nValeInput && !editId && (!nValeInput.value || nValeInput.value === '401')) {
         nValeInput.value = Store.getSiguienteVale();
       }
     });
     Store.init();
 
-    // Navegación de pestañas
+    // Navegación de pestañas (compatibilidad SPA y multi-página)
     document.querySelectorAll('.tab-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        cambiarPestana(btn.getAttribute('data-tab'));
+      btn.addEventListener('click', (e) => {
+        const tab = btn.getAttribute('data-tab');
+        if (tab && document.getElementById(`view-${tab}`)) {
+          e.preventDefault();
+          cambiarPestana(tab);
+        }
       });
     });
 
     configurarDropzone();
     inicializarFormularioVale();
+
+    // Si viene con parámetro ?edit=ID en la URL (ej. enlace desde otra página)
+    const urlParams = new URLSearchParams(window.location.search);
+    const idParaEditar = urlParams.get('edit');
+    if (idParaEditar) {
+      setTimeout(() => {
+        editarVale(Number(idParaEditar));
+      }, 150);
+    }
   }
 
   function cambiarPestana(nombreTab) {
-    document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.view-pane').forEach(p => p.style.display = 'none');
-
-    const tabBtn = document.querySelector(`.tab-btn[data-tab="${nombreTab}"]`);
     const pane = document.getElementById(`view-${nombreTab}`);
+    if (pane) {
+      document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.view-pane').forEach(p => p.style.display = 'none');
 
-    if (tabBtn) tabBtn.classList.add('active');
-    if (pane) pane.style.display = 'block';
+      const tabBtn = document.querySelector(`.tab-btn[data-tab="${nombreTab}"]`);
+      if (tabBtn) tabBtn.classList.add('active');
+      pane.style.display = 'block';
 
-    localStorage.setItem('grifo_active_tab', nombreTab);
+      localStorage.setItem('grifo_active_tab', nombreTab);
+    } else {
+      const rutas = {
+        'dashboard': 'index.html',
+        'vales': 'vales.html',
+        'cobranza': 'cobranza.html',
+        'tanques': 'tanques.html',
+        'importar': 'importar.html',
+        'configuracion': 'configuracion.html'
+      };
+      if (rutas[nombreTab]) {
+        window.location.href = rutas[nombreTab];
+      }
+    }
   }
 
   function renderizarTodo(state) {
@@ -86,9 +113,12 @@ const App = (() => {
   }
 
   function actualizarHeader(state) {
-    document.getElementById('header-empresa').textContent = state.empresa || "ESTACIÓN DE SERVICIOS SULLCAIRI";
-    document.getElementById('header-ruc').textContent = state.ruc ? `RUC: ${state.ruc}` : "RUC: 20608945123";
-    document.getElementById('header-dir').textContent = "jesus_de_lauricocha_huanuco";
+    const empEl = document.getElementById('header-empresa');
+    if (empEl) empEl.textContent = state.empresa || "ESTACIÓN DE SERVICIOS SULLCAIRI";
+    const rucEl = document.getElementById('header-ruc');
+    if (rucEl) rucEl.textContent = state.ruc ? `RUC: ${state.ruc}` : "RUC: 20608945123";
+    const dirEl = document.getElementById('header-dir');
+    if (dirEl) dirEl.textContent = "jesus_de_lauricocha_huanuco";
   }
 
   function actualizarDatalistsYSelects(state) {
@@ -144,24 +174,36 @@ const App = (() => {
 
   // 1. DASHBOARD
   function renderizarDashboard(state) {
+    const dashDiesel = document.getElementById('dash-diesel-gln');
+    if (!dashDiesel) return;
     const m = Store.getMetricas();
 
-    document.getElementById('dash-diesel-gln').textContent = `${m.dieselGln.toFixed(2)} Gln`;
-    document.getElementById('dash-diesel-sol').textContent = `S/ ${m.dieselSoles.toFixed(2)}`;
+    dashDiesel.textContent = `${m.dieselGln.toFixed(2)} Gln`;
+    const dSol = document.getElementById('dash-diesel-sol');
+    if (dSol) dSol.textContent = `S/ ${m.dieselSoles.toFixed(2)}`;
 
-    document.getElementById('dash-premium-gln').textContent = `${m.premiumGln.toFixed(2)} Gln`;
-    document.getElementById('dash-premium-sol').textContent = `S/ ${m.premiumSoles.toFixed(2)}`;
+    const pGln = document.getElementById('dash-premium-gln');
+    if (pGln) pGln.textContent = `${m.premiumGln.toFixed(2)} Gln`;
+    const pSol = document.getElementById('dash-premium-sol');
+    if (pSol) pSol.textContent = `S/ ${m.premiumSoles.toFixed(2)}`;
 
-    document.getElementById('dash-regular-gln').textContent = `${m.regularGln.toFixed(2)} Gln`;
-    document.getElementById('dash-regular-sol').textContent = `S/ ${m.regularSoles.toFixed(2)}`;
+    const rGln = document.getElementById('dash-regular-gln');
+    if (rGln) rGln.textContent = `${m.regularGln.toFixed(2)} Gln`;
+    const rSol = document.getElementById('dash-regular-sol');
+    if (rSol) rSol.textContent = `S/ ${m.regularSoles.toFixed(2)}`;
 
-    document.getElementById('dash-total-sol').textContent = `S/ ${m.totalSoles.toFixed(2)}`;
-    document.getElementById('dash-total-gln').textContent = `${m.totalGln.toFixed(2)} Gln despachados`;
+    const tSol = document.getElementById('dash-total-sol');
+    if (tSol) tSol.textContent = `S/ ${m.totalSoles.toFixed(2)}`;
+    const tGln = document.getElementById('dash-total-gln');
+    if (tGln) tGln.textContent = `${m.totalGln.toFixed(2)} Gln despachados`;
 
-    document.getElementById('dash-porcobrar-sol').textContent = `S/ ${m.pendienteSoles.toFixed(2)}`;
-    document.getElementById('dash-porcobrar-count').textContent = `${m.cantPendientes} vales pendientes`;
+    const pcSol = document.getElementById('dash-porcobrar-sol');
+    if (pcSol) pcSol.textContent = `S/ ${m.pendienteSoles.toFixed(2)}`;
+    const pcCount = document.getElementById('dash-porcobrar-count');
+    if (pcCount) pcCount.textContent = `${m.cantPendientes} vales pendientes`;
 
-    document.getElementById('dash-anulados-count').textContent = m.anulados;
+    const anulEl = document.getElementById('dash-anulados-count');
+    if (anulEl) anulEl.textContent = m.anulados;
 
     // Resumen por Griferos / Personal de Turno
     const tbodyGriferos = document.getElementById('tbody-griferos-resumen');
@@ -215,9 +257,12 @@ const App = (() => {
     if (!tbody) return;
 
     let vales = [...state.vales];
-    const filtroProd = document.getElementById('filtro-producto').value;
-    const filtroEst = document.getElementById('filtro-estado').value;
-    const q = normalizarBusqueda(document.getElementById('search-input').value);
+    const prodEl = document.getElementById('filtro-producto');
+    const estEl = document.getElementById('filtro-estado');
+    const searchEl = document.getElementById('search-input');
+    const filtroProd = prodEl ? prodEl.value : '';
+    const filtroEst = estEl ? estEl.value : '';
+    const q = normalizarBusqueda(searchEl ? searchEl.value : '');
 
     tbody.innerHTML = '';
 
@@ -230,8 +275,10 @@ const App = (() => {
           </td>
         </tr>
       `;
-      document.getElementById('badge-vales-count').textContent = "0 Vales";
-      document.getElementById('tfoot-vales').style.display = 'none';
+      const badge = document.getElementById('badge-vales-count');
+      if (badge) badge.textContent = "0 Vales";
+      const tfoot = document.getElementById('tfoot-vales');
+      if (tfoot) tfoot.style.display = 'none';
       return;
     }
 
@@ -314,14 +361,19 @@ const App = (() => {
       tbody.appendChild(tr);
     });
 
-    document.getElementById('badge-vales-count').textContent = `${vales.length} Vales`;
+    const badge = document.getElementById('badge-vales-count');
+    if (badge) badge.textContent = `${vales.length} Vales`;
     const tfoot = document.getElementById('tfoot-vales');
-    if (vales.length > 0) {
-      tfoot.style.display = 'table-footer-group';
-      document.getElementById('foot-total-gln').textContent = `${sumGln.toFixed(2)} Gln`;
-      document.getElementById('foot-total-soles').textContent = `S/ ${sumSoles.toFixed(2)}`;
-    } else {
-      tfoot.style.display = 'none';
+    if (tfoot) {
+      if (vales.length > 0) {
+        tfoot.style.display = 'table-footer-group';
+        const footGln = document.getElementById('foot-total-gln');
+        const footSol = document.getElementById('foot-total-soles');
+        if (footGln) footGln.textContent = `${sumGln.toFixed(2)} Gln`;
+        if (footSol) footSol.textContent = `S/ ${sumSoles.toFixed(2)}`;
+      } else {
+        tfoot.style.display = 'none';
+      }
     }
   }
 
@@ -516,15 +568,20 @@ const App = (() => {
   // 6. GESTIÓN DEL MODAL DE MODIFICACIÓN DE TANQUES (VARILLAJE)
   function abrirModalModificarTanque(tipoCombustible) {
     const modal = document.getElementById('modal-ajuste-tanque');
-    if (!modal) return;
+    if (!modal) {
+      window.location.href = 'tanques.html';
+      return;
+    }
 
     const selectTipo = document.getElementById('ajuste-tipo-combustible');
     if (tipoCombustible && selectTipo) {
       selectTipo.value = tipoCombustible;
     }
 
-    document.getElementById('ajuste-fecha').value = obtenerFechaHoyISO();
-    document.getElementById('ajuste-detalle').value = '';
+    const fEl = document.getElementById('ajuste-fecha');
+    if (fEl) fEl.value = obtenerFechaHoyISO();
+    const dEl = document.getElementById('ajuste-detalle');
+    if (dEl) dEl.value = '';
 
     actualizarInfoTanqueEnModal();
     modal.classList.add('active');
@@ -537,12 +594,17 @@ const App = (() => {
 
   function actualizarInfoTanqueEnModal() {
     const state = Store.getState();
-    const tipo = document.getElementById('ajuste-tipo-combustible').value;
+    const tipoEl = document.getElementById('ajuste-tipo-combustible');
+    if (!tipoEl) return;
+    const tipo = tipoEl.value;
     const t = state.tanques[tipo];
     if (t) {
-      document.getElementById('ajuste-stock-actual').textContent = `${Number(t.stock).toFixed(2)} Gln`;
-      document.getElementById('ajuste-capacidad-max').textContent = `${Number(t.capacidad).toLocaleString()} Gln`;
-      document.getElementById('ajuste-nueva-cantidad').value = Number(t.stock).toFixed(2);
+      const actEl = document.getElementById('ajuste-stock-actual');
+      if (actEl) actEl.textContent = `${Number(t.stock).toFixed(2)} Gln`;
+      const maxEl = document.getElementById('ajuste-capacidad-max');
+      if (maxEl) maxEl.textContent = `${Number(t.capacidad).toLocaleString()} Gln`;
+      const numEl = document.getElementById('ajuste-nueva-cantidad');
+      if (numEl) numEl.value = Number(t.stock).toFixed(2);
     }
   }
 
@@ -663,16 +725,26 @@ const App = (() => {
   }
 
   function abrirModalImportarExcel() {
+    const modal = document.getElementById('modal-importar-excel');
+    if (!modal) {
+      window.location.href = 'importar.html';
+      return;
+    }
     valesParaImportar = [];
-    document.getElementById('import-status-box').style.display = 'none';
-    document.getElementById('import-preview-wrapper').style.display = 'none';
-    document.getElementById('btn-confirmar-importar').disabled = true;
-    document.getElementById('input-archivo-excel').value = '';
-    document.getElementById('modal-importar-excel').classList.add('active');
+    const statusBox = document.getElementById('import-status-box');
+    if (statusBox) statusBox.style.display = 'none';
+    const previewWrap = document.getElementById('import-preview-wrapper');
+    if (previewWrap) previewWrap.style.display = 'none';
+    const btnConfirmar = document.getElementById('btn-confirmar-importar');
+    if (btnConfirmar) btnConfirmar.disabled = true;
+    const input = document.getElementById('input-archivo-excel');
+    if (input) input.value = '';
+    modal.classList.add('active');
   }
 
   function cerrarModalImportarExcel() {
-    document.getElementById('modal-importar-excel').classList.remove('active');
+    const modal = document.getElementById('modal-importar-excel');
+    if (modal) modal.classList.remove('active');
   }
 
   function procesarArchivoSubido(file) {
@@ -753,52 +825,68 @@ const App = (() => {
 
   // 6. FORMULARIO DE VALES
   function inicializarFormularioVale() {
-    document.getElementById('input-fecha').value = obtenerFechaHoyISO();
+    const fechaEl = document.getElementById('input-fecha');
+    if (!fechaEl) return;
+    fechaEl.value = obtenerFechaHoyISO();
     actualizarPrecioSegunCombustible();
     const nValeInput = document.getElementById('input-nvale');
-    if (nValeInput && !document.getElementById('edit-id').value) {
+    const editIdEl = document.getElementById('edit-id');
+    const editId = editIdEl ? editIdEl.value : '';
+    if (nValeInput && !editId) {
       nValeInput.value = Store.getSiguienteVale();
     }
   }
 
   function actualizarPrecioSegunCombustible() {
+    const prodEl = document.getElementById('input-producto');
+    if (!prodEl) return;
     const state = Store.getState();
-    const prod = document.getElementById('input-producto').value;
+    const prod = prodEl.value;
     const precioInput = document.getElementById('input-precio');
-    if (state.precios && state.precios[prod] !== undefined) {
+    if (precioInput && state.precios && state.precios[prod] !== undefined) {
       precioInput.value = Number(state.precios[prod]).toFixed(2);
     }
     calcularTotalEnVivo();
   }
 
   function calcularTotalEnVivo() {
-    const cant = parseFloat(document.getElementById('input-cantidad').value) || 0;
-    const prec = parseFloat(document.getElementById('input-precio').value) || 0;
+    const totalEl = document.getElementById('input-total');
+    if (!totalEl) return;
+    const cantEl = document.getElementById('input-cantidad');
+    const precEl = document.getElementById('input-precio');
+    const cant = parseFloat(cantEl ? cantEl.value : 0) || 0;
+    const prec = parseFloat(precEl ? precEl.value : 0) || 0;
     const total = Math.round(cant * prec * 100) / 100;
-    document.getElementById('input-total').value = `S/ ${total.toFixed(2)}`;
+    totalEl.value = `S/ ${total.toFixed(2)}`;
   }
 
   function gestionarEstadoAnulado() {
-    const est = document.getElementById('input-estado').value;
+    const estEl = document.getElementById('input-estado');
+    if (!estEl) return;
+    const est = estEl.value;
     const cInput = document.getElementById('input-cliente');
     const pInput = document.getElementById('input-placa');
-    if (est === 'ANULADO') {
-      cInput.removeAttribute('required');
-      pInput.removeAttribute('required');
-    } else {
-      cInput.setAttribute('required', 'required');
-      pInput.setAttribute('required', 'required');
+    if (cInput && pInput) {
+      if (est === 'ANULADO') {
+        cInput.removeAttribute('required');
+        pInput.removeAttribute('required');
+      } else {
+        cInput.setAttribute('required', 'required');
+        pInput.setAttribute('required', 'required');
+      }
     }
   }
 
   async function guardarVale(e) {
     e.preventDefault();
 
-    const editId = document.getElementById('edit-id').value;
-    const fecha = document.getElementById('input-fecha').value;
-    const n_vale = parseInt(document.getElementById('input-nvale').value, 10);
-    const turno = document.getElementById('input-turno').value;
-    let cliente = document.getElementById('input-cliente').value.trim();
+    const editIdEl = document.getElementById('edit-id');
+    const editId = editIdEl ? editIdEl.value : '';
+    const fecha = document.getElementById('input-fecha') ? document.getElementById('input-fecha').value : '';
+    const nValeEl = document.getElementById('input-nvale');
+    const n_vale = nValeEl ? parseInt(nValeEl.value, 10) : 0;
+    const turno = document.getElementById('input-turno') ? document.getElementById('input-turno').value : 'T1 (Mañana)';
+    let cliente = document.getElementById('input-cliente') ? document.getElementById('input-cliente').value.trim() : '';
     if (cliente === '__NUEVO__') {
       const customEl = document.getElementById('input-cliente-custom');
       cliente = customEl ? customEl.value.trim() : "";
@@ -806,34 +894,34 @@ const App = (() => {
     if (!cliente) cliente = "-";
 
     const lugar = "jesus_de_lauricocha_huanuco";
-    const telefono = document.getElementById('input-telefono').value.trim();
-    const placa = document.getElementById('input-placa').value.trim().toUpperCase() || "-";
-    const conductor = document.getElementById('input-conductor').value.trim() || "-";
-    const producto = document.getElementById('input-producto').value;
-    const cantidad = parseFloat(document.getElementById('input-cantidad').value) || 0;
-    const precio = parseFloat(document.getElementById('input-precio').value) || 0;
+    const telefono = document.getElementById('input-telefono') ? document.getElementById('input-telefono').value.trim() : '';
+    const placa = document.getElementById('input-placa') ? (document.getElementById('input-placa').value.trim().toUpperCase() || "-") : "-";
+    const conductor = document.getElementById('input-conductor') ? (document.getElementById('input-conductor').value.trim() || "-") : "-";
+    const producto = document.getElementById('input-producto') ? document.getElementById('input-producto').value : 'DIESEL B5-S50';
+    const cantidad = document.getElementById('input-cantidad') ? (parseFloat(document.getElementById('input-cantidad').value) || 0) : 0;
+    const precio = document.getElementById('input-precio') ? (parseFloat(document.getElementById('input-precio').value) || 0) : 0;
     const total = Math.round(cantidad * precio * 100) / 100;
-    const grifero = document.getElementById('input-grifero').value.trim() || "YANET";
-    const estado = document.getElementById('input-estado').value;
-    const observacion = document.getElementById('input-obs').value.trim();
-    const autoWA = document.getElementById('check-auto-wa').checked;
+    const grifero = document.getElementById('input-grifero') ? (document.getElementById('input-grifero').value.trim() || "YANET") : "YANET";
+    const estado = document.getElementById('input-estado') ? document.getElementById('input-estado').value : 'PENDIENTE';
+    const observacion = document.getElementById('input-obs') ? document.getElementById('input-obs').value.trim() : '';
+    const autoWA = document.getElementById('check-auto-wa') ? document.getElementById('check-auto-wa').checked : false;
 
     // Validación Estricta de Campos (Seguridad y Consistencia)
     if (isNaN(n_vale) || n_vale <= 0 || n_vale > 99999999) {
       alert("Por favor ingrese un N° de Vale válido (número entero positivo).");
-      document.getElementById('input-nvale').focus();
+      if (nValeEl) nValeEl.focus();
       return;
     }
 
     if (cantidad <= 0 || cantidad > 20000) {
       alert("La cantidad debe ser mayor a 0 y menor a 20,000 galones.");
-      document.getElementById('input-cantidad').focus();
+      if (document.getElementById('input-cantidad')) document.getElementById('input-cantidad').focus();
       return;
     }
 
     if (precio <= 0 || precio > 500) {
       alert("El precio unitario debe ser mayor a 0 y menor a S/ 500.");
-      document.getElementById('input-precio').focus();
+      if (document.getElementById('input-precio')) document.getElementById('input-precio').focus();
       return;
     }
 
@@ -841,7 +929,7 @@ const App = (() => {
     const existeDuplicado = state.vales.some(v => Number(v.n_vale) === n_vale && String(v.id) !== String(editId));
     if (existeDuplicado) {
       alert(`El N° de Vale #${n_vale} ya se encuentra registrado.`);
-      document.getElementById('input-nvale').focus();
+      if (nValeEl) nValeEl.focus();
       return;
     }
 
@@ -872,16 +960,26 @@ const App = (() => {
 
   function editarVale(id) {
     const state = Store.getState();
-    const v = state.vales.find(item => item.id === id);
+    const v = state.vales.find(item => Number(item.id) === Number(id));
     if (!v) return;
 
-    document.getElementById('edit-id').value = v.id;
-    document.getElementById('form-vale-title').textContent = `Modificando Vale N° ${v.n_vale}`;
-    document.getElementById('btn-guardar-vale').textContent = "Guardar Cambios";
+    // Si estamos en una página sin formulario de edición (ej. Dashboard o Cobranza), redirigir
+    const editIdEl = document.getElementById('edit-id');
+    if (!editIdEl) {
+      window.location.href = `vales.html?edit=${id}`;
+      return;
+    }
 
-    document.getElementById('input-fecha').value = v.fecha;
-    document.getElementById('input-nvale').value = v.n_vale;
-    document.getElementById('input-turno').value = v.turno;
+    editIdEl.value = v.id;
+    const titleEl = document.getElementById('form-vale-title');
+    if (titleEl) titleEl.textContent = `Modificando Vale N° ${v.n_vale}`;
+    const btnGuardar = document.getElementById('btn-guardar-vale');
+    if (btnGuardar) btnGuardar.textContent = "Guardar Cambios";
+
+    const setVal = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val; };
+    setVal('input-fecha', v.fecha);
+    setVal('input-nvale', v.n_vale);
+    setVal('input-turno', v.turno);
     
     const selCli = document.getElementById('input-cliente');
     const custom = document.getElementById('input-cliente-custom');
@@ -898,27 +996,34 @@ const App = (() => {
       }
     }
 
-    document.getElementById('input-lugar').value = "jesus_de_lauricocha_huanuco";
-    document.getElementById('input-telefono').value = v.telefono || "";
-    document.getElementById('input-placa').value = v.placa === '-' ? '' : v.placa;
-    document.getElementById('input-conductor').value = v.conductor === '-' ? '' : v.conductor;
-    document.getElementById('input-producto').value = v.producto;
-    document.getElementById('input-cantidad').value = v.cantidad;
-    document.getElementById('input-precio').value = v.precio;
-    document.getElementById('input-total').value = `S/ ${Number(v.total).toFixed(2)}`;
-    document.getElementById('input-grifero').value = v.grifero;
-    document.getElementById('input-estado').value = v.estado;
-    document.getElementById('input-obs').value = v.observacion || "";
+    setVal('input-lugar', "jesus_de_lauricocha_huanuco");
+    setVal('input-telefono', v.telefono || "");
+    setVal('input-placa', v.placa === '-' ? '' : v.placa);
+    setVal('input-conductor', v.conductor === '-' ? '' : v.conductor);
+    setVal('input-producto', v.producto);
+    setVal('input-cantidad', v.cantidad);
+    setVal('input-precio', v.precio);
+    setVal('input-total', `S/ ${Number(v.total).toFixed(2)}`);
+    setVal('input-grifero', v.grifero);
+    setVal('input-estado', v.estado);
+    setVal('input-obs', v.observacion || "");
 
     gestionarEstadoAnulado();
     cambiarPestana('vales');
-    window.scrollTo({ top: 180, behavior: 'smooth' });
+    const formPanel = document.getElementById('form-vale-panel');
+    if (formPanel) {
+      formPanel.scrollIntoView({ behavior: 'smooth' });
+    }
   }
 
   function limpiarFormulario() {
-    document.getElementById('edit-id').value = "";
-    document.getElementById('form-vale-title').textContent = "Registrar Nuevo Vale de Combustible";
-    document.getElementById('btn-guardar-vale').textContent = "Guardar Vale";
+    const editIdEl = document.getElementById('edit-id');
+    if (!editIdEl) return;
+    editIdEl.value = "";
+    const titleEl = document.getElementById('form-vale-title');
+    if (titleEl) titleEl.textContent = "Registrar Nuevo Vale de Combustible";
+    const btnGuardar = document.getElementById('btn-guardar-vale');
+    if (btnGuardar) btnGuardar.textContent = "Guardar Vale";
     
     const selCli = document.getElementById('input-cliente');
     if (selCli) selCli.value = "";
@@ -929,14 +1034,15 @@ const App = (() => {
       custom.removeAttribute('required');
     }
 
-    document.getElementById('input-lugar').value = "jesus_de_lauricocha_huanuco";
-    document.getElementById('input-telefono').value = "";
-    document.getElementById('input-placa').value = "";
-    document.getElementById('input-conductor').value = "";
-    document.getElementById('input-cantidad').value = "";
-    document.getElementById('input-total').value = "S/ 0.00";
-    document.getElementById('input-obs').value = "";
-    document.getElementById('input-estado').value = "PENDIENTE";
+    const setVal = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val; };
+    setVal('input-lugar', "jesus_de_lauricocha_huanuco");
+    setVal('input-telefono', "");
+    setVal('input-placa', "");
+    setVal('input-conductor', "");
+    setVal('input-cantidad', "");
+    setVal('input-total', "S/ 0.00");
+    setVal('input-obs', "");
+    setVal('input-estado', "PENDIENTE");
     gestionarEstadoAnulado();
     inicializarFormularioVale();
   }
@@ -1148,9 +1254,12 @@ const App = (() => {
 
   function mostrarToast(msg) {
     const t = document.getElementById('toast');
-    document.getElementById('toast-msg').textContent = msg;
-    t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 3000);
+    const msgEl = document.getElementById('toast-msg');
+    if (msgEl) msgEl.textContent = msg;
+    if (t) {
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
   }
 
   return {

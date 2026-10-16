@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <link rel="icon" type="image/png" href="img/logo.png"/>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ESTACIÓN SULLCAIRI — Tarifas & Ajustes</title>
+  <link rel="stylesheet" href="css/app.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+
+  <!-- SIDEBAR -->
+  <nav id="sidebar"></nav>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main id="main">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+      <div class="page-header" style="margin-bottom:0">
+        <h2>⚙️ Tarifas &amp; Configuración del Sistema</h2>
+        <p>Ajuste de precios oficiales por galón, datos de la estación y seguridad de acceso • Jesús de Lauricocha</p>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-outline" onclick="abrirModalSupabase()">
+          ☁️ Configurar Supabase
+        </button>
+      </div>
+    </div>
+
+    <div style="max-width:880px;margin:0 auto">
+      
+      <!-- Bloque 1: Tarifas de Combustible -->
+      <div class="card" style="margin-bottom:22px;border:1.5px solid var(--borde)">
+        <div class="card-title">
+          <span>⛽ Tarifas Oficiales por Galón (Soles S/.)</span>
+          <span class="badge badge-act" style="font-size:0.75rem">Actualización Instantánea</span>
+        </div>
+        <p style="font-size:0.83rem;color:var(--gris);margin-bottom:18px">
+          Estos precios unitarios se aplican de forma inmediata en la emisión de nuevos vales y en los cálculos del sistema.
+        </p>
+
+        <form id="formTarifas" onsubmit="guardarTarifas(event)">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:18px;margin-bottom:20px">
+            
+            <div style="background:#F8FAFC;border:1.5px solid var(--borde);padding:16px;border-radius:12px">
+              <label class="form-label" for="cfgPrecioDiesel" style="font-weight:800;color:var(--azul)">
+                🛢️ DIESEL B5-S50
+              </label>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:1.1rem;font-weight:800;color:var(--gris)">S/.</span>
+                <input type="number" step="0.01" id="cfgPrecioDiesel" class="form-input" style="font-size:1.3rem;font-weight:900;color:var(--azul)" required />
+              </div>
+              <small style="color:var(--gris);display:block;margin-top:6px">Capacidad: 3,000 GL</small>
+            </div>
+
+            <div style="background:#F8FAFC;border:1.5px solid var(--borde);padding:16px;border-radius:12px">
+              <label class="form-label" for="cfgPrecioPremium" style="font-weight:800;color:var(--azul)">
+                🛢️ GASOHOL PREMIUM
+              </label>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:1.1rem;font-weight:800;color:var(--gris)">S/.</span>
+                <input type="number" step="0.01" id="cfgPrecioPremium" class="form-input" style="font-size:1.3rem;font-weight:900;color:var(--azul)" required />
+              </div>
+              <small style="color:var(--gris);display:block;margin-top:6px">Capacidad: 1,500 GL</small>
+            </div>
+
+            <div style="background:#F8FAFC;border:1.5px solid var(--borde);padding:16px;border-radius:12px">
+              <label class="form-label" for="cfgPrecioRegular" style="font-weight:800;color:var(--azul)">
+                🛢️ GASOHOL REGULAR
+              </label>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:1.1rem;font-weight:800;color:var(--gris)">S/.</span>
+                <input type="number" step="0.01" id="cfgPrecioRegular" class="form-input" style="font-size:1.3rem;font-weight:900;color:var(--azul)" required />
+              </div>
+              <small style="color:var(--gris);display:block;margin-top:6px">Capacidad: 1,500 GL</small>
+            </div>
+
+          </div>
+
+          <div style="display:flex;justify-content:flex-end">
+            <button type="submit" class="btn btn-primary" style="background:#EA580C;border-color:#C2410C;padding:10px 24px">
+              💾 Guardar Nuevas Tarifas
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Bloque 2: Información de la Estación -->
+      <div class="card" style="margin-bottom:22px;border:1.5px solid var(--borde)">
+        <div class="card-title">
+          <span>🏛️ Datos de la Estación de Servicios</span>
+          <span class="badge" style="background:#E0F2FE;color:#0284C7;font-size:0.75rem">Sede Oficial Inmutable</span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:16px">
+          <div>
+            <label class="form-label">Razón Social</label>
+            <input type="text" class="form-input" value="ESTACIÓN DE SERVICIOS SULLCAIRI" readonly style="background:#F1F5F9;font-weight:700" />
+          </div>
+
+          <div>
+            <label class="form-label">RUC Oficial</label>
+            <input type="text" class="form-input" value="20608945123" readonly style="background:#F1F5F9;font-weight:700" />
+          </div>
+
+          <div>
+            <label class="form-label">Sede / Ubicación Geográfica</label>
+            <input type="text" class="form-input" value="jesus_de_lauricocha_huanuco" readonly style="background:#F1F5F9;font-weight:700" />
+          </div>
+
+          <div>
+            <label class="form-label">Teléfono de Contacto</label>
+            <input type="text" id="cfgTelefono" class="form-input" value="962123456" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Bloque 3: Seguridad y Cambio de PIN Admin -->
+      <div class="card" style="margin-bottom:22px;border:1.5px solid var(--borde)">
+        <div class="card-title">
+          <span>🔒 PIN de Administrador (Operaciones Críticas)</span>
+          <span class="badge" style="background:#FEE2E2;color:#991B1B;font-size:0.75rem">Cifrado SHA-256</span>
+        </div>
+        <p style="font-size:0.83rem;color:var(--gris);margin-bottom:16px">
+          El PIN de administrador protege las acciones de alto riesgo (anulación de vales, ajuste físico de varillaje, liquidaciones masivas y restauración de respaldos).
+        </p>
+
+        <form id="formCambiarPin" onsubmit="cambiarPinAdmin(event)">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:14px;margin-bottom:18px">
+            <div>
+              <label class="form-label" for="pinActual">PIN Actual <span style="color:var(--rojo)">*</span></label>
+              <input type="password" id="pinActual" class="form-input" placeholder="PIN actual" maxlength="8" required style="letter-spacing:3px;text-align:center" />
+            </div>
+
+            <div>
+              <label class="form-label" for="pinNuevo">Nuevo PIN (4 a 8 dígitos) <span style="color:var(--rojo)">*</span></label>
+              <input type="password" id="pinNuevo" class="form-input" placeholder="Nuevo PIN" maxlength="8" required style="letter-spacing:3px;text-align:center" />
+            </div>
+
+            <div>
+              <label class="form-label" for="pinConfirmar">Confirmar Nuevo PIN <span style="color:var(--rojo)">*</span></label>
+              <input type="password" id="pinConfirmar" class="form-input" placeholder="Repita el PIN" maxlength="8" required style="letter-spacing:3px;text-align:center" />
+            </div>
+          </div>
+
+          <div style="display:flex;justify-content:flex-end">
+            <button type="submit" class="btn btn-outline" style="border-color:#DC2626;color:#DC2626">
+              🔑 Actualizar PIN de Seguridad
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Bloque 4: Zona de Peligro / Restablecer Base de Datos -->
+      <div class="card" style="border:1.5px solid #FECACA;background:#FEF2F2">
+        <div class="card-title" style="color:#991B1B">
+          <span>⚠️ Zona de Peligro — Reinicio de Fábrica</span>
+        </div>
+        <p style="font-size:0.83rem;color:#7F1D1D;line-height:1.5;margin-bottom:14px">
+          Si necesitas comenzar desde cero en este dispositivo, puedes restablecer la base de datos local a los valores iniciales. Esta acción requiere autorización con PIN.
+        </p>
+        <button class="btn btn-danger" onclick="solicitarReinicioFabrica()">
+          🗑️ Restablecer a Valores de Fábrica
+        </button>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script src="js/security.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/sidebar.js"></script>
+  <script>
+    async function cargarConfiguracion() {
+      try {
+        const cfg = await DB.obtenerConfiguracion();
+        if (cfg) {
+          document.getElementById('cfgPrecioDiesel').value = (Number(cfg.precio_diesel) || 16.80).toFixed(2);
+          document.getElementById('cfgPrecioPremium').value = (Number(cfg.precio_premium) || 19.50).toFixed(2);
+          document.getElementById('cfgPrecioRegular').value = (Number(cfg.precio_regular) || 17.20).toFixed(2);
+          if (cfg.telefono) document.getElementById('cfgTelefono').value = cfg.telefono;
+        }
+      } catch (err) {
+        console.error('Error cargando configuración:', err);
+      }
+    }
+
+    async function guardarTarifas(e) {
+      e.preventDefault();
+      const pDiesel = parseFloat(document.getElementById('cfgPrecioDiesel').value);
+      const pPremium = parseFloat(document.getElementById('cfgPrecioPremium').value);
+      const pRegular = parseFloat(document.getElementById('cfgPrecioRegular').value);
+      const tel = sanitizeString(document.getElementById('cfgTelefono').value.trim());
+
+      if (!pDiesel || !pPremium || !pRegular) {
+        alert("Por favor ingrese precios válidos mayores a cero.");
+        return;
+      }
+
+      try {
+        const actual = await DB.obtenerConfiguracion();
+        const nuevaCfg = {
+          ...actual,
+          precio_diesel: pDiesel,
+          precio_premium: pPremium,
+          precio_regular: pRegular,
+          telefono: tel || '962123456',
+          actualizado_el: new Date().toISOString()
+        };
+
+        await IDB.put('configuracion', nuevaCfg);
+        mostrarNotificacionToast("✅ Tarifas oficiales actualizadas correctamente.", 'success');
+        sincronizarConSupabase(false);
+      } catch (err) {
+        alert("Error al guardar tarifas: " + err.message);
+      }
+    }
+
+    async function cambiarPinAdmin(e) {
+      e.preventDefault();
+      const actual = document.getElementById('pinActual').value.trim();
+      const nuevo = document.getElementById('pinNuevo').value.trim();
+      const confirmar = document.getElementById('pinConfirmar').value.trim();
+
+      const okActual = await DB.verificarPinAdmin(actual);
+      if (!okActual) {
+        alert("❌ El PIN actual ingresado es incorrecto.");
+        return;
+      }
+
+      if (nuevo.length < 4 || nuevo.length > 8) {
+        alert("El nuevo PIN debe tener entre 4 y 8 dígitos.");
+        return;
+      }
+
+      if (nuevo !== confirmar) {
+        alert("El nuevo PIN y su confirmación no coinciden.");
+        return;
+      }
+
+      try {
+        const hash = await hashSha256(nuevo);
+        const cfg = await DB.obtenerConfiguracion();
+        cfg.pin_hash = hash;
+        await IDB.put('configuracion', cfg);
+
+        document.getElementById('pinActual').value = '';
+        document.getElementById('pinNuevo').value = '';
+        document.getElementById('pinConfirmar').value = '';
+
+        mostrarNotificacionToast("🔑 ¡PIN de Administrador actualizado exitosamente!", 'success');
+        sincronizarConSupabase(false);
+      } catch (err) {
+        alert("Error al actualizar PIN: " + err.message);
+      }
+    }
+
+    async function solicitarReinicioFabrica() {
+      const pin = prompt("Ingrese el PIN de Administrador para confirmar el reinicio de fábrica:");
+      if (!pin) return;
+
+      const ok = await DB.verificarPinAdmin(pin.trim());
+      if (!ok) {
+        alert("❌ PIN de Administrador incorrecto.");
+        return;
+      }
+
+      const conf = confirm("¿Está seguro de restablecer la base de datos local? Todos los vales se reiniciarán a las semillas originales.");
+      if (conf) {
+        try {
+          await indexedDB.deleteDatabase(DB_NAME);
+          alert("Base de datos local reiniciada. Se recargará la aplicación.");
+          window.location.href = 'index.html';
+        } catch (err) {
+          alert("Error al reiniciar: " + err.message);
+        }
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      renderSidebar('configuracion');
+      cargarConfiguracion();
+    });
+  </script>
+</body>
+</html>

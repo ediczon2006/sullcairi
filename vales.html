@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <link rel="icon" type="image/png" href="img/logo.png"/>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ESTACIÓN SULLCAIRI — Registro de Vales</title>
+  <link rel="stylesheet" href="css/app.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+
+  <!-- SIDEBAR -->
+  <nav id="sidebar"></nav>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main id="main">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+      <div class="page-header" style="margin-bottom:0">
+        <h2>⛽ Registro de Vales de Combustible</h2>
+        <p>Control histórico de despachos, vales de crédito institucional y liquidaciones en Estación Sullcairi</p>
+      </div>
+      <div class="btn-group">
+        <a href="agregar.html" class="btn btn-primary" style="background:#EA580C;border-color:#C2410C">
+          ➕ Emitir Nuevo Vale
+        </a>
+        <button class="btn btn-outline" onclick="exportarValesFiltradosExcel()">
+          📥 Exportar Excel (.csv)
+        </button>
+        <button class="btn btn-outline" onclick="sincronizarConSupabase(true)">
+          ☁️ Sincronizar Nube
+        </button>
+      </div>
+    </div>
+
+    <!-- Barra de Búsqueda y Filtros -->
+    <div class="card" style="margin-bottom:16px;padding:16px 20px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px;align-items:center">
+        <div>
+          <label class="form-label" for="filtroBuscar">🔍 Buscar Vale</label>
+          <input type="text" id="filtroBuscar" class="form-input" placeholder="N° Vale, cliente, placa, conductor..." oninput="filtrarVales()" />
+        </div>
+        <div>
+          <label class="form-label" for="filtroProducto">🛢️ Combustible</label>
+          <select id="filtroProducto" class="form-select" onchange="filtrarVales()">
+            <option value="">Todos los combustibles</option>
+            <option value="DIESEL B5-S50">DIESEL B5-S50</option>
+            <option value="GASOHOL PREMIUM">GASOHOL PREMIUM</option>
+            <option value="GASOHOL REGULAR">GASOHOL REGULAR</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="filtroEstado">⚡ Estado</label>
+          <select id="filtroEstado" class="form-select" onchange="filtrarVales()">
+            <option value="">Todos los estados</option>
+            <option value="PENDIENTE">PENDIENTE (Crédito)</option>
+            <option value="FACTURADO">FACTURADO (Cobrado)</option>
+            <option value="ANULADO">ANULADO</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="filtroGrifero">👷 Grifero</label>
+          <select id="filtroGrifero" class="form-select" onchange="filtrarVales()">
+            <option value="">Todo el personal</option>
+            <option value="YANET">YANET</option>
+            <option value="CRESILDO">CRESILDO</option>
+            <option value="YAMILEX">YAMILEX</option>
+            <option value="OTROS">OTROS</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="filtroMes">📅 Mes</label>
+          <input type="month" id="filtroMes" class="form-input" onchange="filtrarVales()" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Barra de Resumen de Resultados Filtrados -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px;font-size:0.85rem">
+      <div style="color:var(--gris)">
+        Mostrando <strong id="lblTotalFiltrados" style="color:var(--azul)">0</strong> vales | Total Galones: <strong id="lblTotalGlnFiltrados" style="color:var(--azul)">0.00 GL</strong>
+      </div>
+      <div style="display:flex;gap:16px">
+        <div>Total Filtrado: <strong id="lblTotalSolesFiltrados" style="color:var(--azul);font-size:0.95rem">S/. 0.00</strong></div>
+        <div>Por Cobrar: <strong id="lblTotalPendienteFiltrados" style="color:var(--naranja);font-size:0.95rem">S/. 0.00</strong></div>
+      </div>
+    </div>
+
+    <!-- Tabla Principal de Vales -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>N° Vale</th>
+              <th>Fecha</th>
+              <th>Turno</th>
+              <th>Cliente / Entidad</th>
+              <th>Placa / Conductor</th>
+              <th>Combustible</th>
+              <th>Galones</th>
+              <th>P. Unit</th>
+              <th>Total (S/.)</th>
+              <th>Grifero</th>
+              <th>Estado</th>
+              <th style="text-align:center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyVales">
+            <tr><td colspan="12" style="text-align:center;padding:25px;color:var(--gris)">Cargando vales...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Modal Editar Vale -->
+    <div id="modalEditarVale" class="modal-bg">
+      <div class="modal" style="max-width:550px">
+        <div class="modal-header">
+          <h3>✏️ Editar Vale de Combustible</h3>
+          <button class="modal-close" onclick="cerrarModal('modalEditarVale')">✕</button>
+        </div>
+        <form id="formEditVale" onsubmit="guardarEdicionVale(event)">
+          <input type="hidden" id="editId" />
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div>
+              <label class="form-label" for="editNVale">N° Vale</label>
+              <input type="number" id="editNVale" class="form-input" required />
+            </div>
+            <div>
+              <label class="form-label" for="editFecha">Fecha</label>
+              <input type="date" id="editFecha" class="form-input" required />
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div>
+              <label class="form-label" for="editCliente">Cliente / Institución</label>
+              <input type="text" id="editCliente" class="form-input" required />
+            </div>
+            <div>
+              <label class="form-label" for="editTelefono">Teléfono / WhatsApp</label>
+              <input type="tel" id="editTelefono" class="form-input" placeholder="962123456" />
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div>
+              <label class="form-label" for="editPlaca">Placa</label>
+              <input type="text" id="editPlaca" class="form-input" />
+            </div>
+            <div>
+              <label class="form-label" for="editConductor">Conductor</label>
+              <input type="text" id="editConductor" class="form-input" />
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+            <div>
+              <label class="form-label" for="editProducto">Combustible</label>
+              <select id="editProducto" class="form-select" onchange="recalcularEdicionTotal()">
+                <option value="DIESEL B5-S50">DIESEL B5-S50</option>
+                <option value="GASOHOL PREMIUM">GASOHOL PREMIUM</option>
+                <option value="GASOHOL REGULAR">GASOHOL REGULAR</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label" for="editCantidad">Galones</label>
+              <input type="number" step="0.01" id="editCantidad" class="form-input" required oninput="recalcularEdicionTotal()" />
+            </div>
+            <div>
+              <label class="form-label" for="editPrecio">P. Unit (S/.)</label>
+              <input type="number" step="0.01" id="editPrecio" class="form-input" required oninput="recalcularEdicionTotal()" />
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
+            <div>
+              <label class="form-label" for="editTotal">Total Soles</label>
+              <input type="number" step="0.01" id="editTotal" class="form-input" readonly style="background:#F1F5F9;font-weight:700;color:var(--azul)" />
+            </div>
+            <div>
+              <label class="form-label" for="editGrifero">Grifero</label>
+              <select id="editGrifero" class="form-select">
+                <option value="YANET">YANET</option>
+                <option value="CRESILDO">CRESILDO</option>
+                <option value="YAMILEX">YAMILEX</option>
+                <option value="OTROS">OTROS</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label" for="editEstado">Estado</label>
+              <select id="editEstado" class="form-select">
+                <option value="PENDIENTE">PENDIENTE</option>
+                <option value="FACTURADO">FACTURADO</option>
+                <option value="ANULADO">ANULADO</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display:flex;justify-content:flex-end;gap:10px">
+            <button type="button" class="btn btn-outline" onclick="cerrarModal('modalEditarVale')">Cancelar</button>
+            <button type="submit" class="btn btn-primary" style="background:#EA580C;border-color:#C2410C">Guardar Cambios</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal Anular / Eliminar con PIN Admin -->
+    <div id="modalSeguridadPin" class="modal-bg">
+      <div class="modal" style="max-width:400px;text-align:center">
+        <div class="modal-header">
+          <h3 id="tituloModalPin">🔒 Confirmación de Seguridad</h3>
+          <button class="modal-close" onclick="cerrarModal('modalSeguridadPin')">✕</button>
+        </div>
+        <p style="font-size:0.85rem;color:var(--gris);margin-bottom:16px" id="descModalPin">
+          Esta acción requiere autorización del Administrador. Ingrese el PIN de seguridad:
+        </p>
+        <input type="password" id="inputPinAdmin" class="form-input" placeholder="PIN (por defecto: 1234)" maxlength="8" style="text-align:center;font-size:1.3rem;letter-spacing:4px;margin-bottom:18px" />
+        <div style="display:flex;gap:10px">
+          <button type="button" class="btn btn-outline btn-full" onclick="cerrarModal('modalSeguridadPin')">Cancelar</button>
+          <button type="button" class="btn btn-danger btn-full" id="btnConfirmarPinAccion">Confirmar</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="js/security.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/sidebar.js"></script>
+  <script>
+    let _todosLosVales = [];
+    let _valesFiltrados = [];
+    let _accionPendiente = null;
+
+    async function cargarVales() {
+      try {
+        _todosLosVales = await DB.listarVales();
+        filtrarVales();
+      } catch (err) {
+        console.error('Error al cargar vales:', err);
+      }
+    }
+
+    function filtrarVales() {
+      const q = (document.getElementById('filtroBuscar').value || '').trim().toLowerCase();
+      const prod = document.getElementById('filtroProducto').value;
+      const est = document.getElementById('filtroEstado').value;
+      const grif = document.getElementById('filtroGrifero').value;
+      const mes = document.getElementById('filtroMes').value; // YYYY-MM
+
+      _valesFiltrados = _todosLosVales.filter(v => {
+        if (prod && v.producto !== prod) return false;
+        if (est && v.estado !== est) return false;
+        if (grif && (v.grifero || 'YANET') !== grif) return false;
+        if (mes && !(v.fecha || '').startsWith(mes)) return false;
+
+        if (q) {
+          const matchQ = 
+            String(v.n_vale).toLowerCase().includes(q) ||
+            (v.cliente || '').toLowerCase().includes(q) ||
+            (v.placa || '').toLowerCase().includes(q) ||
+            (v.conductor || '').toLowerCase().includes(q) ||
+            (v.observacion || '').toLowerCase().includes(q);
+          if (!matchQ) return false;
+        }
+
+        return true;
+      });
+
+      renderizarTablaVales();
+    }
+
+    function renderizarTablaVales() {
+      const tbody = document.getElementById('tbodyVales');
+      const totalFiltrados = _valesFiltrados.length;
+      let sumGln = 0;
+      let sumSoles = 0;
+      let sumPend = 0;
+
+      if (totalFiltrados === 0) {
+        tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:25px;color:var(--gris)">No se encontraron vales con los filtros aplicados.</td></tr>';
+      } else {
+        tbody.innerHTML = _valesFiltrados.map(v => {
+          const cant = Number(v.cantidad) || 0;
+          const tot = Number(v.total) || 0;
+          sumGln += cant;
+          sumSoles += tot;
+          if (v.estado === 'PENDIENTE') sumPend += tot;
+
+          const isPend = v.estado === 'PENDIENTE';
+          const isAnul = v.estado === 'ANULADO';
+          const badgeClass = isPend ? 'badge-pend' : isAnul ? 'badge-anul' : 'badge-act';
+
+          return `
+            <tr>
+              <td><strong style="color:var(--azul)">#${v.n_vale}</strong></td>
+              <td>${esc(v.fecha)}</td>
+              <td><span style="font-size:0.75rem;color:var(--gris)">${esc(v.turno || 'T1')}</span></td>
+              <td>
+                <strong>${esc(v.cliente)}</strong>
+                ${v.telefono ? `<br><small style="color:#0284C7">📱 ${esc(v.telefono)}</small>` : ''}
+              </td>
+              <td>
+                <span style="font-weight:600">${esc(v.placa || '-')}</span>
+                ${v.conductor && v.conductor !== '-' ? `<br><small style="color:var(--gris)">${esc(v.conductor)}</small>` : ''}
+              </td>
+              <td><span class="badge" style="background:#E0F2FE;color:#0284C7;font-size:0.75rem">${esc(v.producto)}</span></td>
+              <td><strong>${cant.toFixed(2)} GL</strong></td>
+              <td>S/. ${Number(v.precio).toFixed(2)}</td>
+              <td style="font-weight:800;color:var(--azul)">S/. ${tot.toFixed(2)}</td>
+              <td><small>${esc(v.grifero || '-')}</small></td>
+              <td><span class="badge ${badgeClass}">${esc(v.estado)}</span></td>
+              <td style="text-align:center;white-space:nowrap">
+                <button class="btn btn-sm btn-outline" onclick="enviarWhatsAppVale(${v.id})" title="Enviar Comprobante por WhatsApp" style="padding:3px 7px">
+                  💬
+                </button>
+                <button class="btn btn-sm btn-outline" onclick="abrirEdicionVale(${v.id})" title="Editar Vale" style="padding:3px 7px">
+                  ✏️
+                </button>
+                <button class="btn btn-sm btn-outline" onclick="cambiarEstadoRapido(${v.id}, '${v.estado === 'PENDIENTE' ? 'FACTURADO' : 'PENDIENTE'}')" title="Cambiar a ${v.estado === 'PENDIENTE' ? 'Facturado' : 'Pendiente'}" style="padding:3px 7px">
+                  ${v.estado === 'PENDIENTE' ? '✅' : '⏳'}
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="solicitarAnulacionVale(${v.id})" title="Anular Vale con PIN" style="padding:3px 7px">
+                  ✕
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      document.getElementById('lblTotalFiltrados').textContent = totalFiltrados.toLocaleString();
+      document.getElementById('lblTotalGlnFiltrados').textContent = `${sumGln.toFixed(2)} GL`;
+      document.getElementById('lblTotalSolesFiltrados').textContent = `S/. ${sumSoles.toFixed(2)}`;
+      document.getElementById('lblTotalPendienteFiltrados').textContent = `S/. ${sumPend.toFixed(2)}`;
+    }
+
+    function enviarWhatsAppVale(id) {
+      const v = _todosLosVales.find(x => Number(x.id) === Number(id));
+      if (!v) return;
+
+      const texto = 
+`⛽ *ESTACIÓN DE SERVICIOS SULLCAIRI*
+Sede: Jesús de Lauricocha • Huánuco
+RUC: 20608945123 | Tel: 962 123 456
+
+📄 *COMPROBANTE DE VALE DE COMBUSTIBLE*
+────────────────────────
+*N° Vale:* #${v.n_vale}
+*Fecha:* ${v.fecha} (${v.turno || 'T1'})
+*Cliente:* ${v.cliente}
+*Placa:* ${v.placa || '-'}
+*Conductor:* ${v.conductor || '-'}
+*Combustible:* ${v.producto}
+*Cantidad:* ${Number(v.cantidad).toFixed(2)} Galones
+*Precio Unitario:* S/. ${Number(v.precio).toFixed(2)}
+*TOTAL A PAGAR:* S/. ${Number(v.total).toFixed(2)}
+*Estado:* ${v.estado}
+*Atendido por:* ${v.grifero || 'Personal de Turno'}
+────────────────────────
+_Conserve este comprobante para su liquidación institucional._`;
+
+      const tel = (v.telefono || '').replace(/\D/g, '');
+      const url = tel.length >= 9
+        ? `https://api.whatsapp.com/send?phone=51${tel}&text=${encodeURIComponent(texto)}`
+        : `https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`;
+
+      window.open(url, '_blank');
+    }
+
+    async function cambiarEstadoRapido(id, nuevoEstado) {
+      try {
+        await DB.actualizarEstadoVale(id, nuevoEstado);
+        mostrarNotificacionToast(`Vale actualizado a ${nuevoEstado}`, 'success');
+        await cargarVales();
+      } catch (err) {
+        alert("Error al actualizar estado: " + err.message);
+      }
+    }
+
+    function abrirEdicionVale(id) {
+      const v = _todosLosVales.find(x => Number(x.id) === Number(id));
+      if (!v) return;
+
+      document.getElementById('editId').value = v.id;
+      document.getElementById('editNVale').value = v.n_vale;
+      document.getElementById('editFecha').value = v.fecha;
+      document.getElementById('editCliente').value = v.cliente;
+      document.getElementById('editTelefono').value = v.telefono || '';
+      document.getElementById('editPlaca').value = v.placa || '';
+      document.getElementById('editConductor').value = v.conductor || '';
+      document.getElementById('editProducto').value = v.producto;
+      document.getElementById('editCantidad').value = v.cantidad;
+      document.getElementById('editPrecio').value = v.precio;
+      document.getElementById('editTotal').value = v.total;
+      document.getElementById('editGrifero').value = v.grifero || 'YANET';
+      document.getElementById('editEstado').value = v.estado || 'PENDIENTE';
+
+      abrirModal('modalEditarVale');
+    }
+
+    function recalcularEdicionTotal() {
+      const cant = parseFloat(document.getElementById('editCantidad').value) || 0;
+      const prec = parseFloat(document.getElementById('editPrecio').value) || 0;
+      document.getElementById('editTotal').value = (cant * prec).toFixed(2);
+    }
+
+    async function guardarEdicionVale(e) {
+      e.preventDefault();
+      const id = Number(document.getElementById('editId').value);
+      const n_vale = Number(document.getElementById('editNVale').value);
+      const fecha = document.getElementById('editFecha').value;
+      const cliente = sanitizeString(document.getElementById('editCliente').value.trim().toUpperCase());
+      const telefono = sanitizeString(document.getElementById('editTelefono').value.trim());
+      const placa = sanitizeString(document.getElementById('editPlaca').value.trim().toUpperCase());
+      const conductor = sanitizeString(document.getElementById('editConductor').value.trim().toUpperCase());
+      const producto = document.getElementById('editProducto').value;
+      const cantidad = parseFloat(document.getElementById('editCantidad').value);
+      const precio = parseFloat(document.getElementById('editPrecio').value);
+      const total = parseFloat(document.getElementById('editTotal').value);
+      const grifero = document.getElementById('editGrifero').value;
+      const estado = document.getElementById('editEstado').value;
+
+      try {
+        await DB.guardarVale({
+          id, n_vale, fecha, cliente, telefono, placa, conductor,
+          producto, cantidad, precio, total, grifero, estado
+        });
+
+        cerrarModal('modalEditarVale');
+        mostrarNotificacionToast("✅ Vale actualizado correctamente.", 'success');
+        await cargarVales();
+      } catch (err) {
+        alert("Error al guardar edición: " + err.message);
+      }
+    }
+
+    function solicitarAnulacionVale(id) {
+      _accionPendiente = async () => {
+        await DB.eliminarVale(id);
+        mostrarNotificacionToast("Vale anulado / eliminado del registro.", 'info');
+        await cargarVales();
+      };
+
+      document.getElementById('tituloModalPin').textContent = '⚠️ Anular Vale con PIN';
+      document.getElementById('descModalPin').textContent = 'Para anular o eliminar este vale y restablecer el stock, ingrese el PIN de administrador:';
+      document.getElementById('inputPinAdmin').value = '';
+      abrirModal('modalSeguridadPin');
+    }
+
+    document.getElementById('btnConfirmarPinAccion').onclick = async () => {
+      const pin = document.getElementById('inputPinAdmin').value.trim();
+      const ok = await DB.verificarPinAdmin(pin);
+      if (!ok) {
+        alert("❌ PIN de administrador incorrecto.");
+        return;
+      }
+
+      cerrarModal('modalSeguridadPin');
+      if (typeof _accionPendiente === 'function') {
+        await _accionPendiente();
+        _accionPendiente = null;
+      }
+    };
+
+    function exportarValesFiltradosExcel() {
+      if (_valesFiltrados.length === 0) {
+        alert("No hay vales para exportar con los filtros actuales.");
+        return;
+      }
+
+      let csv = "\uFEFFN_VALE,FECHA,TURNO,CLIENTE,LUGAR,TELEFONO,PLACA,CONDUCTOR,PRODUCTO,CANTIDAD_GLN,PRECIO_UNIT,TOTAL_SOLES,GRIFERO,ESTADO,OBSERVACION\n";
+      _valesFiltrados.forEach(v => {
+        csv += [
+          v.n_vale,
+          v.fecha,
+          `"${v.turno || 'T1'}"`,
+          `"${(v.cliente || '').replace(/"/g, '""')}"`,
+          `"jesus_de_lauricocha_huanuco"`,
+          `"${v.telefono || ''}"`,
+          `"${v.placa || '-'}"`,
+          `"${(v.conductor || '-').replace(/"/g, '""')}"`,
+          `"${v.producto}"`,
+          Number(v.cantidad).toFixed(2),
+          Number(v.precio).toFixed(2),
+          Number(v.total).toFixed(2),
+          `"${v.grifero || 'YANET'}"`,
+          `"${v.estado}"`,
+          `"${(v.observacion || '').replace(/"/g, '""')}"`
+        ].join(",") + "\n";
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Vales_Sullcairi_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      renderSidebar('vales');
+      window.onDatosActualizados = cargarVales;
+      await cargarVales();
+    });
+  </script>
+</body>
+</html>

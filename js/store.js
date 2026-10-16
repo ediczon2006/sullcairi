@@ -307,6 +307,9 @@ const Store = (() => {
     }
 
     await persist();
+    if (typeof subirValeASupabase === 'function') {
+      subirValeASupabase(vale);
+    }
   }
 
   async function actualizarVale(id, valeActualizado) {
@@ -346,6 +349,9 @@ const Store = (() => {
       registrarNuevoClienteSiNoExiste(valeActualizado.cliente);
       registrarNuevoPersonalSiNoExiste(valeActualizado.grifero);
       await persist();
+      if (typeof subirValeASupabase === 'function') {
+        subirValeASupabase(state.vales[idx]);
+      }
     }
   }
 
@@ -373,6 +379,9 @@ const Store = (() => {
       });
 
       await persist();
+      if (typeof subirValeASupabase === 'function') {
+        subirValeASupabase(v);
+      }
     }
   }
 
@@ -383,6 +392,9 @@ const Store = (() => {
     }
     state.vales = state.vales.filter(item => String(item.id) !== String(id));
     await persist();
+    if (typeof eliminarValeDeSupabase === 'function') {
+      eliminarValeDeSupabase(id);
+    }
   }
 
   async function modificarStockTanque(tipoCombustible, nuevoStockGln, motivo, fechaMovimiento) {
@@ -410,6 +422,9 @@ const Store = (() => {
     });
 
     await persist();
+    if (typeof sincronizarTanqueASupabase === 'function') {
+      sincronizarTanqueASupabase(tipoCombustible, nuevoStock);
+    }
   }
 
   async function importarValesMasivos(nuevosVales, reemplazar = false) {

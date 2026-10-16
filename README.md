@@ -1,109 +1,66 @@
-# Sistema ERP de Gestión de Combustibles y Control de Vales
-### Estación de Servicios y Combustibles S.A.C. (Grifo Sullcairi)
+# Estación de Servicios Sullcairi — Sistema ERP de Combustibles & Vales
+### Sede Oficial: Jesús de Lauricocha • Huánuco | RUC: 20608945123 | Tel: 962 123 456
 
-Sistema web integral de alta disponibilidad para la gestión, despacho, control de vales de crédito, cuentas por cobrar, cubicación de tanques y liquidación de clientes para estaciones de servicios.
-
----
-
-## 🚀 Acceso Rápido y Modos de Uso
-
-### 1. Enlace Web Público (En línea)
-Puedes abrir y compartir el sistema directamente desde cualquier navegador (PC, Tablet o Celular) sin instalar nada:
-👉 **[Abrir Sistema en GitHub Pages](https://ediczon2006.github.io/grifo_sullcairi/)**
-
-### 2. Archivo Único Portable (`grifo_sullcairi_completo.html`)
-- Un archivo HTML 100% autónomo con todos los estilos, scripts y base de datos embebidos.
-- Se puede enviar por WhatsApp, Telegram o correo electrónico a cualquier persona.
-- Basta con hacer doble clic para abrirlo en cualquier navegador sin conexión a internet ni servidor.
-
-### 3. Servidor Local REST con Persistencia (`servidor.py`)
-Para uso operativo en oficina o caja con guardado automático en disco (`datos.json`) y copias de seguridad:
-
-```bash
-# Iniciar servidor local en el puerto 8000
-python servidor.py
-
-# O especificar otro puerto:
-python servidor.py 8080
-```
-
-El servidor mostrará en consola:
-- **En tu computadora:** `http://localhost:8000`
-- **En red local (WiFi para celulares o laptops de oficina):** `http://192.168.x.x:8000`
+Sistema ERP web multi-página de alto rendimiento, diseñado con la arquitectura independiente de **Leytrix**, con persistencia local **IndexedDB** (100% offline-first) y sincronización bidireccional automática en la nube con **Supabase Cloud**.
 
 ---
 
-## 📋 Módulos Principales
+## 🚀 Acceso en Línea (GitHub Pages)
 
-### 1. Panel de Control (Dashboard)
-- **KPIs en tiempo real:** Galones y soles despachados por combustible (Diesel B5 S-50, Gasohol Premium, Regular y GLP).
-- **Control de Cartera:** Monto total facturado vs. pendiente de cobro.
-- **Top 5 Clientes:** Ranking de mayor consumo en volumen y facturación.
-- **Consumo por Sedes / Lugares:** Métricas agrupadas geográficamente (Lima, Cantera Sur, Almacén Central, Fundo Cañete, etc.).
+Puedes abrir el sistema desde cualquier celular, tablet o computadora sin instalar nada:
+👉 **[Abrir Estación Sullcairi en GitHub Pages](https://ediczon2006.github.io/sullcairi/)**
 
-### 2. Registro y Control de Vales
-- Formulario de despacho rápido con cálculo de importes en tiempo real según tarifario.
-- Validación de correlatividad y prevención de duplicados de vales.
-- Buscador predictivo multidimensional (cliente, placa, chofer, número de vale, grifero).
-- Filtros instantáneos por combustible, estado (Emitido, Facturado, Anulado) y sede/lugar.
-- Acciones rápidas: Edición, anulación justificada y eliminación.
-- Generación de constancia de despacho para WhatsApp con un solo clic.
-
-### 3. Cuentas por Cobrar (Liquidación de Clientes)
-- Consolidado por cliente con conteo de vales pendientes vs. históricos.
-- Saldo deudor totalizado por empresa.
-- **Botón directo de cobranza por WhatsApp:** Abre la conversación con un mensaje detallado del estado de cuenta y monto adeudado listo para enviar.
-
-### 4. Medición de Tanques de Almacenamiento
-- Monitoreo de niveles de stock actual vs. capacidad máxima por tanque.
-- Indicadores visuales de nivel crítico con alertas por colorimetría (verde, ámbar, rojo).
-
-### 5. Configuración y Tarifario
-- Datos fiscales de la empresa (Razón Social, RUC, Dirección fiscal, Teléfono de contacto).
-- Precios oficiales por galón de cada combustible.
+Al compartir el enlace con cualquier persona:
+1. Funciona de inmediato en su propio navegador y dispositivo.
+2. Los datos se almacenan en su dispositivo localmente y se sincronizan en tiempo real con Supabase Cloud.
 
 ---
 
-## 📊 Integración con Microsoft Excel (.xlsx)
+## ☁️ Configuración de Supabase Cloud (1 Clic)
 
-1. **Descargar Reporte Excel:** Exporta todos los registros de vales con formato ejecutivo profesional de celdas y columnas.
-2. **Subir / Importar Excel:** Zona Drag-and-Drop para importar hojas de cálculo masivas, con detección inteligente de columnas y opción de anexar o reemplazar.
-3. **Descargar Plantilla Oficial:** Genera una plantilla lista para que griferos o clientes llenen sus vales.
-4. **Generador Automatizado (`crear_excel_grifo.py`):** Script en Python con `openpyxl` que genera el libro de trabajo corporativo con fórmulas automáticas (`SUMIFS`, `COUNTIF`), estilos premium y pestañas de auditoría.
+El sistema ya viene configurado con el proyecto de Supabase:
+- **URL:** `https://gtfmhtrvsbfcftstbadj.supabase.co`
+- **Publishable Key:** `sb_publishable_jLqnXfwQ2Zksb_fvuympjQ_v2OR8F8x`
+- **Proyecto:** `gtfmhtrvsbfcftstbadj`
 
-```bash
-python crear_excel_grifo.py
-```
-
----
-
-## 🗂️ Estructura del Proyecto
-
-```
-grifo_sullcairi/
-│
-├── index.html                   # Aplicación principal del sistema
-├── grifo_sullcairi_completo.html# Versión portable 100% independiente en un solo archivo
-├── servidor.py                  # Servidor HTTP / REST multihilo en Python 3
-├── datos.json                   # Base de datos local persistente
-├── crear_excel_grifo.py         # Generador de plantilla y libro Excel
-├── build_standalone.py          # Constructor del bundle HTML independiente
-│
-├── css/
-│   └── theme.css                # Sistema de diseño, temas corporativos y tipografía
-│
-├── js/
-│   ├── store.js                 # Store centralizado, cálculo de métricas y persistencia
-│   ├── app.js                   # Controlador de vistas, tablas, WhatsApp y modales
-│   └── export.js                # Motor de importación y exportación SheetJS / Excel
-│
-└── backups/                     # Copias de seguridad automáticas rotativas
-```
+### Para activar las tablas en Supabase:
+1. Ingresa a tu panel en [Supabase SQL Editor](https://supabase.com/dashboard/project/gtfmhtrvsbfcftstbadj/sql/new).
+2. Copia todo el contenido del archivo [`supabase_setup.sql`](supabase_setup.sql) (o usa el botón **"📋 Copiar Código SQL"** dentro del modal de la nube en cualquier página del sistema).
+3. Pégalo en el editor y haz clic en **Run**.
+4. ¡Listo! Todas las tablas, políticas de seguridad RLS y canales Realtime quedarán activos.
 
 ---
 
-## 🔒 Seguridad y Respaldos
+## 🗂️ Estructura Multi-Página Independiente
 
-- **Respaldos locales:** Cada guardado en `servidor.py` genera copias rotativas fechadas en `/backups` (se conservan las últimas 30 versiones).
-- **Descarga de JSON de respaldo:** Opción en la interfaz para descargar la base de datos completa como archivo `.json`.
-- **Compatibilidad offline:** Si no se dispone de conexión ni servidor, el sistema funciona de manera autónoma almacenando el estado en el navegador (`LocalStorage`).
+Cada página es autónoma, posee su propia lógica y barra lateral responsiva:
+
+| Página | Descripción |
+|---|---|
+| [`index.html`](index.html) | **Panel General:** KPIs globales, nivel cilíndrico de los 3 tanques, top entidades con deuda y últimos vales. |
+| [`vales.html`](vales.html) | **Registro de Vales:** Buscador predictivo, filtros por combustible, turno y grifero, comprobante WhatsApp, edición y anulación segura con PIN. |
+| [`agregar.html`](agregar.html) | **Emitir Vale:** Despacho rápido interactivo con correlativo automático, cálculo bidireccional Galones/Soles y presets. |
+| [`cobranza.html`](cobranza.html) | **Cuentas por Cobrar:** Consolidado de deuda por institución (UGEL, Salud, Fiscalía, etc.), recordatorio WhatsApp con desglose y liquidación con PIN. |
+| [`tanques.html`](tanques.html) | **Tanques & Varillaje:** Monitoreo de 6,000 GL de almacenamiento, alertas por colorimetría y calibración por varillaje físico con PIN. |
+| [`diario.html`](diario.html) | **Registro Diario:** Auditoría cronológica por Día, Fecha, Año, Turno y Grifero con exportación a Excel (.csv). |
+| [`importexport.html`](importexport.html) | **Importar / Exportar:** Carga masiva de archivos Excel (.xlsx/.csv) con SheetJS, previsualización, plantilla modelo y respaldos JSON. |
+| [`configuracion.html`](configuracion.html) | **Tarifas & Ajustes:** Precios oficiales por galón, datos de la estación, cambio de PIN de administrador (SHA-256) y reinicio de fábrica. |
+
+---
+
+## 🛢️ Tanques y Combustibles de la Estación
+
+Capacidad total: **6,000 Galones** distribuidos en 3 tanques subterráneos:
+- **Diesel B5-S50:** 3,000 GL (Stock inicial: 2,150 GL | Alerta naranja: 500 GL | Alerta roja: 250 GL | Tarifa ref.: S/. 16.80)
+- **Gasohol Premium:** 1,500 GL (Stock inicial: 1,100 GL | Alerta naranja: 500 GL | Alerta roja: 250 GL | Tarifa ref.: S/. 19.50)
+- **Gasohol Regular:** 1,500 GL (Stock inicial: 980 GL | Alerta naranja: 500 GL | Alerta roja: 250 GL | Tarifa ref.: S/. 17.20)
+
+---
+
+## 🔒 Seguridad y Buenas Prácticas Implementadas
+
+- **Protección XSS y Sanitización:** Codificación de entidades HTML y validación estricta de cadenas y valores numéricos en `js/security.js`.
+- **PIN de Administrador Cifrado con SHA-256:** Las operaciones de alto riesgo (anulación de vales, varillaje físico, liquidación total y cambio de configuración) requieren el PIN de administrador (por defecto: `1234`).
+- **Control de Inyección:** Parametrización y saneamiento de objetos antes de almacenamiento en IndexedDB y Supabase.
+- **Row-Level Security (RLS):** Scripts DDL configurados para el acceso y sincronización multi-dispositivo seguro.
+- **100% Offline-First:** Si se corta la conexión a internet en la estación, el sistema sigue operando normalmente y sincroniza en fondo al restablecerse la red.

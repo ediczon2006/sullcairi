@@ -213,7 +213,7 @@ class GrifoRequestHandler(SimpleHTTPRequestHandler):
         self.send_header("Permissions-Policy", "geolocation=(), camera=(), microphone=(), payment=()")
         self.send_header(
             "Content-Security-Policy",
-            "default-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com data:; "
+            "default-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com https://cdn.jsdelivr.net https://gtfmhtrvsbfcftstbadj.supabase.co wss://gtfmhtrvsbfcftstbadj.supabase.co data: blob:; "
             "img-src 'self' data: https: blob:; "
             "object-src 'none'; frame-ancestors 'none'; base-uri 'self';"
         )

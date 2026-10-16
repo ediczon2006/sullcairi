@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <link rel="icon" type="image/png" href="img/logo.png"/>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ESTACIÓN SULLCAIRI — Cuentas por Cobrar</title>
+  <link rel="stylesheet" href="css/app.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+
+  <!-- SIDEBAR -->
+  <nav id="sidebar"></nav>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main id="main">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+      <div class="page-header" style="margin-bottom:0">
+        <h2>💳 Cuentas por Cobrar &amp; Liquidaciones</h2>
+        <p>Control de crédito institucional (UGEL, Salud, Fiscalía, Consorcios) con cobranza 1-clic por WhatsApp</p>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="exportarLiquidacionExcel()" style="background:#EA580C;border-color:#C2410C">
+          📥 Exportar Estado de Cuenta
+        </button>
+        <button class="btn btn-outline" onclick="sincronizarConSupabase(true)">
+          ☁️ Sincronizar Nube
+        </button>
+      </div>
+    </div>
+
+    <!-- KPIs de Cobranza -->
+    <div class="kpi-grid">
+      <div class="kpi kpi-orange">
+        <div class="val" id="kpiTotalDeuda">S/. 0.00</div>
+        <div class="lbl">Total Pendiente por Cobrar</div>
+      </div>
+      <div class="kpi kpi-red">
+        <div class="val" id="kpiEntidadesDeuda">0</div>
+        <div class="lbl">Instituciones / Clientes en Mora</div>
+      </div>
+      <div class="kpi kpi-blue">
+        <div class="val" id="kpiValesPendientesCount">0</div>
+        <div class="lbl">Vales Pendientes de Liquidar</div>
+      </div>
+      <div class="kpi kpi-green">
+        <div class="val" id="kpiGalonesPendientes">0.00 GL</div>
+        <div class="lbl">Volumen de Combustible por Cobrar</div>
+      </div>
+    </div>
+
+    <!-- Buscador de Entidad -->
+    <div class="card" style="margin-bottom:20px;padding:16px 20px">
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+        <div style="flex:1;min-width:240px">
+          <label class="form-label" for="txtBuscarEntidad">🔍 Filtrar por Institución o Cliente:</label>
+          <input type="text" id="txtBuscarEntidad" class="form-input" placeholder="UGEL, RED DE SALUD, FISCALIA, CONSORCIO..." oninput="filtrarEntidades()" />
+        </div>
+        <div style="min-width:180px">
+          <label class="form-label" for="selSoloConDeuda">Mostrar:</label>
+          <select id="selSoloConDeuda" class="form-select" onchange="filtrarEntidades()">
+            <option value="deuda" selected>Solo con Deuda Pendiente</option>
+            <option value="todos">Todos los Clientes</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contenedor de Tarjetas de Entidades -->
+    <div id="contenedorEntidades" style="display:flex;flex-direction:column;gap:18px;margin-bottom:24px">
+      <div style="text-align:center;padding:30px;color:var(--gris)">Cargando cuentas por cobrar...</div>
+    </div>
+
+    <!-- Modal Detalle de Vales de una Entidad -->
+    <div id="modalDetalleEntidad" class="modal-bg">
+      <div class="modal" style="max-width:800px">
+        <div class="modal-header">
+          <h3 id="modalEntidadTitulo">📋 Detalle de Vales — Entidad</h3>
+          <button class="modal-close" onclick="cerrarModal('modalDetalleEntidad')">✕</button>
+        </div>
+        <div style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+          <div id="modalEntidadResumen" style="font-size:0.88rem;color:var(--gris)"></div>
+          <button class="btn btn-success btn-sm" id="btnModalLiquidarTodo" style="background:#16A34A;border-color:#15803D">
+            ✅ Marcar Todos como Pagados
+          </button>
+        </div>
+        <div class="table-wrap" style="max-height:360px;overflow-y:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>N° Vale</th>
+                <th>Fecha</th>
+                <th>Combustible</th>
+                <th>Galones</th>
+                <th>Total Soles</th>
+                <th>Placa / Chofer</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyModalValesEntidad"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:16px;display:flex;justify-content:flex-end">
+          <button class="btn btn-outline" onclick="cerrarModal('modalDetalleEntidad')">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Seguridad PIN para Liquidación Masiva -->
+    <div id="modalPinCobranza" class="modal-bg">
+      <div class="modal" style="max-width:400px;text-align:center">
+        <div class="modal-header">
+          <h3>🔒 Autorización de Liquidación</h3>
+          <button class="modal-close" onclick="cerrarModal('modalPinCobranza')">✕</button>
+        </div>
+        <p style="font-size:0.85rem;color:var(--gris);margin-bottom:16px">
+          Para marcar los vales como FACTURADOS / PAGADOS, ingrese el PIN de Administrador:
+        </p>
+        <input type="password" id="inputPinCobranza" class="form-input" placeholder="PIN (1234)" maxlength="8" style="text-align:center;font-size:1.3rem;letter-spacing:4px;margin-bottom:18px" />
+        <div style="display:flex;gap:10px">
+          <button type="button" class="btn btn-outline btn-full" onclick="cerrarModal('modalPinCobranza')">Cancelar</button>
+          <button type="button" class="btn btn-primary btn-full" id="btnConfirmarPinCobranza" style="background:#16A34A;border-color:#15803D">Confirmar Pago</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="js/security.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/sidebar.js"></script>
+  <script>
+    let _todosLosVales = [];
+    let _agrupadoClientes = {};
+    let _entidadActualSeleccionada = null;
+
+    async function cargarCobranzas() {
+      try {
+        _todosLosVales = await DB.listarVales();
+        agruparPorCliente();
+        filtrarEntidades();
+      } catch (err) {
+        console.error('Error cargando cobranzas:', err);
+      }
+    }
+
+    function agruparPorCliente() {
+      _agrupadoClientes = {};
+      let totalDeuda = 0;
+      let totalGlnDeuda = 0;
+      let valesPendCount = 0;
+
+      _todosLosVales.forEach(v => {
+        const cli = (v.cliente || 'VARIOS').toUpperCase().trim();
+        if (!_agrupadoClientes[cli]) {
+          _agrupadoClientes[cli] = {
+            cliente: cli,
+            telefono: v.telefono || '',
+            vales: [],
+            valesPendientes: [],
+            totalSoles: 0,
+            deudaSoles: 0,
+            deudaGln: 0,
+            totalGln: 0
+          };
+        }
+
+        const cant = Number(v.cantidad) || 0;
+        const tot = Number(v.total) || 0;
+
+        _agrupadoClientes[cli].vales.push(v);
+        _agrupadoClientes[cli].totalSoles += tot;
+        _agrupadoClientes[cli].totalGln += cant;
+
+        if (v.telefono && !_agrupadoClientes[cli].telefono) {
+          _agrupadoClientes[cli].telefono = v.telefono;
+        }
+
+        if (v.estado === 'PENDIENTE') {
+          _agrupadoClientes[cli].valesPendientes.push(v);
+          _agrupadoClientes[cli].deudaSoles += tot;
+          _agrupadoClientes[cli].deudaGln += cant;
+          totalDeuda += tot;
+          totalGlnDeuda += cant;
+          valesPendCount++;
+        }
+      });
+
+      const listaEntidades = Object.values(_agrupadoClientes);
+      const enMora = listaEntidades.filter(e => e.deudaSoles > 0).length;
+
+      document.getElementById('kpiTotalDeuda').textContent = `S/. ${totalDeuda.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      document.getElementById('kpiEntidadesDeuda').textContent = `${enMora} Entidades`;
+      document.getElementById('kpiValesPendientesCount').textContent = `${valesPendCount} Vales`;
+      document.getElementById('kpiGalonesPendientes').textContent = `${totalGlnDeuda.toFixed(2)} GL`;
+    }
+
+    function filtrarEntidades() {
+      const q = (document.getElementById('txtBuscarEntidad').value || '').trim().toUpperCase();
+      const soloDeuda = document.getElementById('selSoloConDeuda').value === 'deuda';
+
+      const contenedor = document.getElementById('contenedorEntidades');
+      let lista = Object.values(_agrupadoClientes);
+
+      if (soloDeuda) {
+        lista = lista.filter(e => e.deudaSoles > 0);
+      }
+      if (q) {
+        lista = lista.filter(e => e.cliente.includes(q));
+      }
+
+      lista.sort((a, b) => b.deudaSoles - a.deudaSoles);
+
+      if (lista.length === 0) {
+        contenedor.innerHTML = `
+          <div class="card" style="text-align:center;padding:40px">
+            <span style="font-size:2.5rem">🎉</span>
+            <h3 style="color:var(--verde);margin-top:10px">¡Todas las cuentas al día!</h3>
+            <p style="color:var(--gris)">No hay deudas pendientes registradas con el criterio de búsqueda actual.</p>
+          </div>
+        `;
+        return;
+      }
+
+      contenedor.innerHTML = lista.map(ent => {
+        const tieneDeuda = ent.deudaSoles > 0;
+        return `
+          <div class="card" style="border-left:5px solid ${tieneDeuda ? '#EA580C' : '#16A34A'};padding:20px 24px">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px">
+              <div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <h3 style="font-size:1.15rem;font-weight:800;color:var(--azul);margin:0">${esc(ent.cliente)}</h3>
+                  <span class="badge ${tieneDeuda ? 'badge-pend' : 'badge-act'}" style="font-size:0.75rem">
+                    ${tieneDeuda ? `Deuda: S/. ${ent.deudaSoles.toFixed(2)}` : 'Al Día'}
+                  </span>
+                </div>
+                <div style="display:flex;gap:16px;margin-top:6px;font-size:0.83rem;color:var(--gris);flex-wrap:wrap">
+                  <span>📱 Tel: <strong>${esc(ent.telefono || 'Sin teléfono')}</strong></span>
+                  <span>⛽ Vales pendientes: <strong style="color:var(--naranja)">${ent.valesPendientes.length}</strong></span>
+                  <span>🛢️ Combustible pendiente: <strong>${ent.deudaGln.toFixed(2)} GL</strong></span>
+                  <span>📊 Total histórico: <strong>S/. ${ent.totalSoles.toFixed(2)}</strong></span>
+                </div>
+              </div>
+              <div class="btn-group">
+                ${tieneDeuda ? `
+                  <button class="btn btn-success btn-sm" onclick="enviarWhatsAppLiquidacion('${esc(ent.cliente)}')" style="background:#16A34A;border-color:#15803D">
+                    💬 Enviar Cobranza WhatsApp
+                  </button>
+                  <button class="btn btn-primary btn-sm" onclick="abrirDetalleEntidad('${esc(ent.cliente)}')" style="background:#0284C7;border-color:#0284C7">
+                    📋 Ver Vales (${ent.valesPendientes.length})
+                  </button>
+                ` : `
+                  <button class="btn btn-outline btn-sm" onclick="abrirDetalleEntidad('${esc(ent.cliente)}')">
+                    📋 Historial Completo
+                  </button>
+                `}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function enviarWhatsAppLiquidacion(cliente) {
+      const ent = _agrupadoClientes[cliente];
+      if (!ent || ent.valesPendientes.length === 0) {
+        alert("No hay vales pendientes para esta entidad.");
+        return;
+      }
+
+      let desglose = "";
+      ent.valesPendientes.slice(0, 15).forEach(v => {
+        desglose += `• Vale #${v.n_vale} (${v.fecha}): ${Number(v.cantidad).toFixed(2)} GL ${v.producto} - S/. ${Number(v.total).toFixed(2)}\n`;
+      });
+
+      if (ent.valesPendientes.length > 15) {
+        desglose += `... y ${ent.valesPendientes.length - 15} vales más.\n`;
+      }
+
+      const mensaje = 
+`⛽ *ESTACIÓN DE SERVICIOS SULLCAIRI*
+Sede: Jesús de Lauricocha • Huánuco
+RUC: 20608945123 | Tel: 962 123 456
+
+📄 *ESTADO DE CUENTA Y LIQUIDACIÓN PENDIENTE*
+Estimados: *${ent.cliente}*
+────────────────────────
+Le hacemos llegar el detalle de los vales de combustible pendientes de pago a la fecha:
+
+${desglose}
+────────────────────────
+*TOTAL VALES PENDIENTES:* ${ent.valesPendientes.length} vales
+*VOLUMEN TOTAL:* ${ent.deudaGln.toFixed(2)} Galones
+*TOTAL SALDO A CANCELAR:* *S/. ${ent.deudaSoles.toFixed(2)}*
+────────────────────────
+_Por favor coordinar su cancelación o envío de comprobante de depósito bancario. Gracias por su preferencia._`;
+
+      const tel = (ent.telefono || '').replace(/\D/g, '');
+      const waUrl = tel.length >= 9
+        ? `https://api.whatsapp.com/send?phone=51${tel}&text=${encodeURIComponent(mensaje)}`
+        : `https://api.whatsapp.com/send?text=${encodeURIComponent(mensaje)}`;
+
+      window.open(waUrl, '_blank');
+    }
+
+    function abrirDetalleEntidad(cliente) {
+      const ent = _agrupadoClientes[cliente];
+      if (!ent) return;
+      _entidadActualSeleccionada = ent;
+
+      document.getElementById('modalEntidadTitulo').textContent = `📋 Detalle de Vales — ${ent.cliente}`;
+      document.getElementById('modalEntidadResumen').innerHTML = `
+        Deuda Pendiente: <strong style="color:var(--naranja)">S/. ${ent.deudaSoles.toFixed(2)}</strong> (${ent.valesPendientes.length} vales) | 
+        Total Histórico: <strong>S/. ${ent.totalSoles.toFixed(2)}</strong> (${ent.vales.length} vales)
+      `;
+
+      const tbody = document.getElementById('tbodyModalValesEntidad');
+      const valesParaMostrar = ent.valesPendientes.length > 0 ? ent.valesPendientes : ent.vales;
+
+      tbody.innerHTML = valesParaMostrar.map(v => `
+        <tr>
+          <td><strong style="color:var(--azul)">#${v.n_vale}</strong></td>
+          <td>${v.fecha}</td>
+          <td><small class="badge" style="background:#E0F2FE;color:#0284C7">${v.producto}</small></td>
+          <td><strong>${Number(v.cantidad).toFixed(2)} GL</strong></td>
+          <td style="font-weight:800;color:var(--azul)">S/. ${Number(v.total).toFixed(2)}</td>
+          <td><small>${esc(v.placa || '-')} / ${esc(v.conductor || '-')}</small></td>
+          <td>
+            <button class="btn btn-sm btn-success" onclick="liquidarValeIndividual(${v.id})" style="padding:2px 8px;font-size:0.75rem" title="Marcar como Facturado">
+              ${v.estado === 'PENDIENTE' ? '💳 Cancelar' : '✅ Pagado'}
+            </button>
+          </td>
+        </tr>
+      `).join('');
+
+      abrirModal('modalDetalleEntidad');
+    }
+
+    async function liquidarValeIndividual(id) {
+      try {
+        await DB.actualizarEstadoVale(id, 'FACTURADO');
+        mostrarNotificacionToast("Vale marcado como cancelado/facturado.", 'success');
+        await cargarCobranzas();
+        if (_entidadActualSeleccionada) {
+          abrirDetalleEntidad(_entidadActualSeleccionada.cliente);
+        }
+      } catch (e) {
+        alert("Error al liquidar vale: " + e.message);
+      }
+    }
+
+    document.getElementById('btnModalLiquidarTodo').onclick = () => {
+      if (!_entidadActualSeleccionada || _entidadActualSeleccionada.valesPendientes.length === 0) {
+        alert("No hay vales pendientes para liquidar en esta entidad.");
+        return;
+      }
+      document.getElementById('inputPinCobranza').value = '';
+      abrirModal('modalPinCobranza');
+    };
+
+    document.getElementById('btnConfirmarPinCobranza').onclick = async () => {
+      const pin = document.getElementById('inputPinCobranza').value.trim();
+      const ok = await DB.verificarPinAdmin(pin);
+      if (!ok) {
+        alert("❌ PIN de administrador incorrecto.");
+        return;
+      }
+
+      cerrarModal('modalPinCobranza');
+      cerrarModal('modalDetalleEntidad');
+
+      try {
+        for (const v of _entidadActualSeleccionada.valesPendientes) {
+          await DB.actualizarEstadoVale(v.id, 'FACTURADO');
+        }
+        mostrarNotificacionToast(`✅ ¡Todos los vales de ${_entidadActualSeleccionada.cliente} han sido liquidados!`, 'success');
+        await cargarCobranzas();
+      } catch (err) {
+        alert("Error al liquidar vales: " + err.message);
+      }
+    };
+
+    function exportarLiquidacionExcel() {
+      const lista = Object.values(_agrupadoClientes).filter(e => e.deudaSoles > 0);
+      if (lista.length === 0) {
+        alert("No hay deudas pendientes para exportar.");
+        return;
+      }
+
+      let csv = "\uFEFFCLIENTE,TELEFONO,VALES_PENDIENTES,GALONES_PENDIENTES,DEUDA_TOTAL_SOLES,TOTAL_HISTORICO_SOLES\n";
+      lista.forEach(e => {
+        csv += [
+          `"${e.cliente.replace(/"/g, '""')}"`,
+          `"${e.telefono}"`,
+          e.valesPendientes.length,
+          e.deudaGln.toFixed(2),
+          e.deudaSoles.toFixed(2),
+          e.totalSoles.toFixed(2)
+        ].join(",") + "\n";
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Cuentas_Por_Cobrar_Sullcairi_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      renderSidebar('cobranza');
+      window.onDatosActualizados = cargarCobranzas;
+      await cargarCobranzas();
+
+      // Check if URL has ?cliente=XYZ
+      const urlParams = new URLSearchParams(window.location.search);
+      const paramCli = urlParams.get('cliente');
+      if (paramCli) {
+        document.getElementById('txtBuscarEntidad').value = paramCli;
+        filtrarEntidades();
+      }
+    });
+  </script>
+</body>
+</html>

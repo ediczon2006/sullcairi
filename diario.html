@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <link rel="icon" type="image/png" href="img/logo.png"/>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ESTACIÓN SULLCAIRI — Registro Diario</title>
+  <link rel="stylesheet" href="css/app.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+
+  <!-- SIDEBAR -->
+  <nav id="sidebar"></nav>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main id="main">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+      <div class="page-header" style="margin-bottom:0">
+        <h2>📋 Registro Diario &amp; Arqueo de Despacho</h2>
+        <p>Auditoría correlativa de salidas por Día, Fecha, Año, Turnos y Grifero • Jesús de Lauricocha</p>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="exportarDiarioExcel()" style="background:#EA580C;border-color:#C2410C">
+          📥 Descargar Reporte Diario (.csv)
+        </button>
+        <button class="btn btn-outline" onclick="sincronizarConSupabase(true)">
+          ☁️ Sincronizar Nube
+        </button>
+      </div>
+    </div>
+
+    <!-- Barra de Selección de Fecha y Turno -->
+    <div class="card" style="margin-bottom:16px;padding:16px 20px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;align-items:center">
+        <div>
+          <label class="form-label" for="selFechaDiario">📅 Fecha de Operación</label>
+          <input type="date" id="selFechaDiario" class="form-input" onchange="cargarRegistroDiario()" />
+        </div>
+        <div>
+          <label class="form-label" for="selTurnoDiario">⏰ Turno</label>
+          <select id="selTurnoDiario" class="form-select" onchange="cargarRegistroDiario()">
+            <option value="">Todos los turnos (Día Completo)</option>
+            <option value="T1 (Mañana)">T1 (Mañana)</option>
+            <option value="T2 (Tarde)">T2 (Tarde)</option>
+            <option value="T3 (Noche)">T3 (Noche)</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="selGriferoDiario">👷 Grifero / Responsable</label>
+          <select id="selGriferoDiario" class="form-select" onchange="cargarRegistroDiario()">
+            <option value="">Todos los griferos</option>
+            <option value="YANET">YANET</option>
+            <option value="CRESILDO">CRESILDO</option>
+            <option value="YAMILEX">YAMILEX</option>
+            <option value="OTROS">OTROS</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="selProductoDiario">🛢️ Combustible</label>
+          <select id="selProductoDiario" class="form-select" onchange="cargarRegistroDiario()">
+            <option value="">Todos los combustibles</option>
+            <option value="DIESEL B5-S50">DIESEL B5-S50</option>
+            <option value="GASOHOL PREMIUM">GASOHOL PREMIUM</option>
+            <option value="GASOHOL REGULAR">GASOHOL REGULAR</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPIs del Día / Turno -->
+    <div class="kpi-grid">
+      <div class="kpi kpi-blue">
+        <div class="val" id="kpiDiarioGalones">0.00 GL</div>
+        <div class="lbl">Volumen Despachado</div>
+      </div>
+      <div class="kpi kpi-orange">
+        <div class="val" id="kpiDiarioSoles">S/. 0.00</div>
+        <div class="lbl">Venta Total del Día</div>
+      </div>
+      <div class="kpi kpi-green">
+        <div class="val" id="kpiDiarioVales">0 Vales</div>
+        <div class="lbl">Despachos Realizados</div>
+      </div>
+      <div class="kpi kpi-fuel">
+        <div class="val" id="kpiDiarioDiesel">0.00 GL</div>
+        <div class="lbl">Diesel B5-S50 Despachado</div>
+      </div>
+    </div>
+
+    <!-- Tabla Detallada del Registro Diario -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>N° Vale</th>
+              <th>Día</th>
+              <th>Fecha</th>
+              <th>Turno</th>
+              <th>Cliente / Razón Social</th>
+              <th>Placa</th>
+              <th>Combustible</th>
+              <th>Galones (GL)</th>
+              <th>P. Unit (S/.)</th>
+              <th>Importe (S/.)</th>
+              <th>Grifero</th>
+              <th>Modalidad</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyDiario">
+            <tr><td colspan="12" style="text-align:center;padding:25px;color:var(--gris)">Cargando arqueo diario...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="js/security.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/sidebar.js"></script>
+  <script>
+    let _valesDiarios = [];
+
+    async function inicializarFecha() {
+      const hoy = new Date().toISOString().slice(0, 10);
+      document.getElementById('selFechaDiario').value = hoy;
+      await cargarRegistroDiario();
+    }
+
+    async function cargarRegistroDiario() {
+      const fecha = document.getElementById('selFechaDiario').value;
+      const turno = document.getElementById('selTurnoDiario').value;
+      const grifero = document.getElementById('selGriferoDiario').value;
+      const producto = document.getElementById('selProductoDiario').value;
+
+      try {
+        const todos = await DB.listarVales();
+        _valesDiarios = todos.filter(v => {
+          if (fecha && v.fecha !== fecha) return false;
+          if (turno && v.turno !== turno) return false;
+          if (grifero && (v.grifero || 'YANET') !== grifero) return false;
+          if (producto && v.producto !== producto) return false;
+          return true;
+        });
+
+        renderizarTablaDiario();
+      } catch (err) {
+        console.error('Error cargando diario:', err);
+      }
+    }
+
+    function renderizarTablaDiario() {
+      const tbody = document.getElementById('tbodyDiario');
+      let sumGln = 0;
+      let sumSoles = 0;
+      let sumDiesel = 0;
+
+      if (_valesDiarios.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:25px;color:var(--gris)">No hay registros de despacho para la fecha y filtros seleccionados.</td></tr>';
+      } else {
+        tbody.innerHTML = _valesDiarios.map(v => {
+          const cant = Number(v.cantidad) || 0;
+          const tot = Number(v.total) || 0;
+          sumGln += cant;
+          sumSoles += tot;
+          if (v.producto === 'DIESEL B5-S50') sumDiesel += cant;
+
+          const diaNum = v.fecha ? v.fecha.split('-')[2] : '-';
+          const isPend = v.estado === 'PENDIENTE';
+
+          return `
+            <tr>
+              <td><strong style="color:var(--azul)">#${v.n_vale}</strong></td>
+              <td><span class="badge" style="background:#E2E8F0;color:#334155">${diaNum}</span></td>
+              <td>${esc(v.fecha)}</td>
+              <td><small>${esc(v.turno || 'T1')}</small></td>
+              <td><strong>${esc(v.cliente)}</strong></td>
+              <td>${esc(v.placa || '-')}</td>
+              <td><span class="badge" style="background:#E0F2FE;color:#0284C7;font-size:0.75rem">${esc(v.producto)}</span></td>
+              <td><strong>${cant.toFixed(2)} GL</strong></td>
+              <td>S/. ${Number(v.precio).toFixed(2)}</td>
+              <td style="font-weight:800;color:var(--azul)">S/. ${tot.toFixed(2)}</td>
+              <td><small>${esc(v.grifero || '-')}</small></td>
+              <td><span class="badge ${isPend ? 'badge-pend' : 'badge-act'}">${esc(v.estado)}</span></td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      document.getElementById('kpiDiarioGalones').textContent = `${sumGln.toFixed(2)} GL`;
+      document.getElementById('kpiDiarioSoles').textContent = `S/. ${sumSoles.toFixed(2)}`;
+      document.getElementById('kpiDiarioVales').textContent = `${_valesDiarios.length} Vales`;
+      document.getElementById('kpiDiarioDiesel').textContent = `${sumDiesel.toFixed(2)} GL`;
+    }
+
+    function exportarDiarioExcel() {
+      if (_valesDiarios.length === 0) {
+        alert("No hay registros en la fecha seleccionada para exportar.");
+        return;
+      }
+
+      const fecha = document.getElementById('selFechaDiario').value || 'Reporte';
+      let csv = "\uFEFFN_VALE,DIA,FECHA,TURNO,CLIENTE,LUGAR,PLACA,PRODUCTO,GALONES,PRECIO_UNIT,TOTAL_SOLES,GRIFERO,ESTADO\n";
+      _valesDiarios.forEach(v => {
+        const diaNum = v.fecha ? v.fecha.split('-')[2] : '';
+        csv += [
+          v.n_vale,
+          diaNum,
+          v.fecha,
+          `"${v.turno || 'T1'}"`,
+          `"${(v.cliente || '').replace(/"/g, '""')}"`,
+          `"jesus_de_lauricocha_huanuco"`,
+          `"${v.placa || '-'}"`,
+          `"${v.producto}"`,
+          Number(v.cantidad).toFixed(2),
+          Number(v.precio).toFixed(2),
+          Number(v.total).toFixed(2),
+          `"${v.grifero || 'YANET'}"`,
+          `"${v.estado}"`
+        ].join(",") + "\n";
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Registro_Diario_Sullcairi_${fecha}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      renderSidebar('diario');
+      inicializarFecha();
+    });
+  </script>
+</body>
+</html>

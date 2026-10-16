@@ -5,6 +5,7 @@ index_path = os.path.join(base_dir, "index.html")
 css_path = os.path.join(base_dir, "css", "theme.css")
 store_path = os.path.join(base_dir, "js", "store.js")
 export_path = os.path.join(base_dir, "js", "export.js")
+supabase_path = os.path.join(base_dir, "js", "supabase_client.js")
 app_path = os.path.join(base_dir, "js", "app.js")
 out_path = os.path.join(base_dir, "grifo_sullcairi_completo.html")
 
@@ -20,6 +21,11 @@ with open(store_path, "r", encoding="utf-8") as f:
 with open(export_path, "r", encoding="utf-8") as f:
     export_js = f.read()
 
+supabase_js = ""
+if os.path.exists(supabase_path):
+    with open(supabase_path, "r", encoding="utf-8") as f:
+        supabase_js = f.read()
+
 with open(app_path, "r", encoding="utf-8") as f:
     app_js = f.read()
 
@@ -30,12 +36,14 @@ html = html.replace(css_tag, inline_css)
 old_scripts = (
     '  <script src="js/store.js"></script>\n'
     '  <script src="js/export.js"></script>\n'
+    '  <script src="js/supabase_client.js"></script>\n'
     '  <script src="js/app.js"></script>'
 )
 
 new_scripts = (
     '  <script>\n' + store_js + '\n  </script>\n'
     '  <script>\n' + export_js + '\n  </script>\n'
+    '  <script>\n' + supabase_js + '\n  </script>\n'
     '  <script>\n' + app_js + '\n  </script>'
 )
 
