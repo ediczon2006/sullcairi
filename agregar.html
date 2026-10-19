@@ -5,7 +5,7 @@
   <meta charset="UTF-8"/>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/><meta http-equiv="Pragma" content="no-cache"/><meta http-equiv="Expires" content="0"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>ESTACIÓN SULLCAIRI — Emitir Vale</title>
-  <link rel="stylesheet" href="css/app.css?v=20261019_120004_120004"/>
+  <link rel="stylesheet" href="css/app.css?v=20261019_125058"/>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
 <body>
@@ -224,9 +224,9 @@
 
   </main>
 
-  <script src="js/security.js?v=20261019_120004_120004"></script>
-  <script src="js/db.js?v=20261019_120004_120004"></script>
-  <script src="js/sidebar.js?v=20261019_120004_120004"></script>
+  <script src="js/security.js?v=20261019_125058"></script>
+  <script src="js/db.js?v=20261019_125058"></script>
+  <script src="js/sidebar.js?v=20261019_125058"></script>
   <script>
     let _precios = { ...PRECIOS_DEFAULT };
     let _tanques = { ...TANQUES_DEFAULT };
@@ -267,6 +267,18 @@
 
         actualizarEtiquetasPreciosYStock();
         seleccionarCombustible('DIESEL B5-S50');
+
+        // 4. Fijar Grifero automáticamente según la sesión activa
+        const sesion = typeof UserSession !== 'undefined' ? UserSession.obtener() : null;
+        const selGrifero = document.getElementById('valeGrifero');
+        if (sesion && selGrifero) {
+          if (['YANET', 'CRESILDO', 'YAMILEX'].includes(sesion.usuario)) {
+            selGrifero.value = sesion.usuario;
+            selGrifero.disabled = true; // El operador despacha con su propio nombre
+          } else {
+            selGrifero.disabled = false; // El administrador puede elegir cualquier grifero
+          }
+        }
       } catch (e) {
         console.warn('Error cargando configuración:', e);
       }
@@ -455,6 +467,7 @@ _Comprobante oficial para control y liquidación institucional._`;
   </script>
 </body>
 </html>
+
 
 
 

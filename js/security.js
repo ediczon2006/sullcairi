@@ -117,9 +117,12 @@ const SullcairiSecurity = (() => {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
-  // 6. Gestión de Sesión Segura de Administrador con TTL (15 minutos)
+  // 6. Gestión de Sesión de Usuario y Administrador con TTL (8 horas por turno de trabajo)
+  const USER_SESSION_KEY = 'sullcairi_user_session';
+  const USER_SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 horas
+
   const SESSION_KEY = 'sullcairi_admin_session';
-  const SESSION_TTL_MS = 15 * 60 * 1000;
+  const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutos de elevación de privilegios Admin
 
   const AdminSession = {
     iniciar() {
@@ -135,7 +138,6 @@ const SullcairiSecurity = (() => {
         if (!item) return false;
         const s = JSON.parse(item);
         if (s && s.auth && Date.now() < s.expira) {
-          // Renovar TTL
           s.expira = Date.now() + SESSION_TTL_MS;
           sessionStorage.setItem(SESSION_KEY, JSON.stringify(s));
           return true;
@@ -146,6 +148,73 @@ const SullcairiSecurity = (() => {
     },
     cerrar() {
       sessionStorage.removeItem(SESSION_KEY);
+    }
+  };
+
+  const UserSession = {
+    iniciar(usuario, nombre, rol) {
+      const s = {
+        usuario: String(usuario).trim().toUpperCase(),
+        nombre: nombre || usuario,
+        rol: rol || 'OPERADOR',
+        auth: true,
+        iniciado_el: Date.now(),
+        expira: Date.now() + USER_SESSION_TTL_MS
+      };
+      localStorage.setItem(USER_SESSION_KEY, JSON.stringify(s));
+      if (s.rol === 'ADMIN') {
+        AdminSession.iniciar();
+      } else {
+        AdminSession.cerrar();
+      }
+      return s;
+    },
+    obtener() {
+      try {
+        const item = localStorage.getItem(USER_SESSION_KEY);
+        if (!item) return null;
+        const s = JSON.parse(item);
+        if (s && s.auth && Date.now() < s.expira) {
+          s.expira = Date.now() + USER_SESSION_TTL_MS;
+          localStorage.setItem(USER_SESSION_KEY, JSON.stringify(s));
+          return s;
+        }
+      } catch (_) {}
+      this.cerrar();
+      return null;
+    },
+    esAdmin() {
+      const u = this.obtener();
+      return u && u.rol === 'ADMIN';
+    },
+    estaAutenticado() {
+      return !!this.obtener();
+    },
+    cerrar() {
+      localStorage.removeItem(USER_SESSION_KEY);
+      AdminSession.cerrar();
+    },
+    verificarAccesoPagina(paginaActual) {
+      if (typeof window === 'undefined') return true;
+      const path = window.location.pathname.toLowerCase();
+      if (path.includes('login.html')) return true;
+
+      const user = this.obtener();
+      if (!user) {
+        window.location.href = 'login.html';
+        return false;
+      }
+
+      // Páginas exclusivas para Administrador
+      const paginasAdmin = ['configuracion.html', 'tanques.html', 'importexport.html'];
+      const esPaginaAdmin = paginasAdmin.some(p => path.endsWith(p) || path.includes(p));
+
+      if (esPaginaAdmin && user.rol !== 'ADMIN') {
+        alert('🔒 Acceso Restringido: Esta sección requiere perfil de Administrador.');
+        window.location.href = 'index.html';
+        return false;
+      }
+      return true;
     }
   };
 
@@ -198,6 +267,7 @@ const SullcairiSecurity = (() => {
     registrarIntentoPin,
     estaPinBloqueado,
     AdminSession,
+    UserSession,
     validarHoneypot,
     forzarHTTPS
   };
@@ -208,3 +278,5 @@ const SullcairiSecurity = (() => {
 const esc = SullcairiSecurity.sanitize;
 const sanitizeString = SullcairiSecurity.sanitize;
 const hashSha256 = SullcairiSecurity.hashSha256;
+const UserSession = SullcairiSecurity.UserSession;
+const AdminSession = SullcairiSecurity.AdminSession;

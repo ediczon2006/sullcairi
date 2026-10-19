@@ -1,0 +1,415 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <link rel="icon" type="image/png" href="img/logo.png"/>
+  <meta charset="UTF-8"/>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/><meta http-equiv="Pragma" content="no-cache"/><meta http-equiv="Expires" content="0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ESTACIÓN SULLCAIRI — Iniciar Sesión</title>
+  <link rel="stylesheet" href="css/app.css?v=20261019_125058"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #06182C 0%, #0F2A4A 50%, #172554 100%);
+      padding: 16px;
+      margin: 0;
+      font-family: var(--font-base, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+    }
+    .login-container {
+      width: 100%;
+      max-width: 480px;
+      background: #FFFFFF;
+      border-radius: 20px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .login-header {
+      background: linear-gradient(135deg, #0F2A4A 0%, #1E3A8A 100%);
+      color: #FFFFFF;
+      padding: 28px 24px 22px;
+      text-align: center;
+      position: relative;
+    }
+    .login-logo {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid #EA580C;
+      box-shadow: 0 0 20px rgba(234, 88, 12, 0.5);
+      margin-bottom: 10px;
+      background: #030712;
+    }
+    .user-pill-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .user-pill {
+      border: 2px solid #E2E8F0;
+      border-radius: 12px;
+      padding: 12px 10px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: #F8FAFC;
+    }
+    .user-pill:hover {
+      border-color: #EA580C;
+      background: #FFF7ED;
+      transform: translateY(-2px);
+    }
+    .user-pill.active {
+      border-color: #EA580C;
+      background: #FFF7ED;
+      box-shadow: 0 4px 12px rgba(234, 88, 12, 0.2);
+    }
+    .user-pill-icon {
+      font-size: 1.5rem;
+      margin-bottom: 4px;
+      display: block;
+    }
+    .user-pill-name {
+      font-weight: 800;
+      font-size: 0.92rem;
+      color: #0F2A4A;
+      display: block;
+    }
+    .user-pill-role {
+      font-size: 0.72rem;
+      color: #64748B;
+      font-weight: 600;
+    }
+    .pin-display {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin: 18px 0 24px;
+    }
+    .pin-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid #CBD5E1;
+      background: #F8FAFC;
+      transition: all 0.2s ease;
+    }
+    .pin-dot.filled {
+      background: #EA580C;
+      border-color: #EA580C;
+      transform: scale(1.15);
+      box-shadow: 0 0 10px rgba(234, 88, 12, 0.6);
+    }
+    .keypad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      max-width: 300px;
+      margin: 0 auto 18px;
+    }
+    .key-btn {
+      background: #F1F5F9;
+      border: 1px solid #CBD5E1;
+      border-radius: 12px;
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: #0F2A4A;
+      padding: 14px 0;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+    .key-btn:active, .key-btn:hover {
+      background: #E2E8F0;
+      transform: scale(0.97);
+    }
+    .key-btn.key-action {
+      background: #FEE2E2;
+      border-color: #FECACA;
+      color: #991B1B;
+      font-size: 1.1rem;
+    }
+    .key-btn.key-action:hover {
+      background: #FCA5A5;
+    }
+    .badge-admin {
+      background: #FEF3C7;
+      color: #92400E;
+      border: 1px solid #FCD34D;
+      padding: 3px 8px;
+      border-radius: 8px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      display: inline-block;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="login-container">
+    
+    <!-- Encabezado de la Estación -->
+    <div class="login-header">
+      <img src="img/logo.png" alt="Sullcairi Logo" class="login-logo" onerror="this.src='img/logo.jpg'" />
+      <h2 style="font-size:1.25rem;margin:0;font-weight:900;letter-spacing:0.5px">ESTACIÓN DE SERVICIOS SULLCAIRI</h2>
+      <p style="font-size:0.78rem;color:#93C5FD;margin:4px 0 0">Jesús de Lauricocha • Huánuco • Sede Oficial</p>
+    </div>
+
+    <div style="padding:24px 22px">
+
+      <div style="text-align:center;margin-bottom:14px">
+        <span style="font-size:0.82rem;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:1px">
+          1. Seleccione su Usuario
+        </span>
+      </div>
+
+      <!-- Selector de Perfiles -->
+      <div class="user-pill-grid" id="userPillGrid">
+        <div class="user-pill active" onclick="seleccionarUsuario('ADMIN', 'Administrador de Estación', 'ADMIN', this)">
+          <span class="user-pill-icon">🛡️</span>
+          <span class="user-pill-name">ADMIN</span>
+          <span class="user-pill-role">Control Total</span>
+          <span class="badge-admin">Maneja Todo</span>
+        </div>
+
+        <div class="user-pill" onclick="seleccionarUsuario('YANET', 'Yanet Quispe', 'OPERADOR', this)">
+          <span class="user-pill-icon">👷</span>
+          <span class="user-pill-name">YANET</span>
+          <span class="user-pill-role">Atención T1 (Mañana)</span>
+        </div>
+
+        <div class="user-pill" onclick="seleccionarUsuario('CRESILDO', 'Cresildo Alvarado', 'OPERADOR', this)">
+          <span class="user-pill-icon">👷</span>
+          <span class="user-pill-name">CRESILDO</span>
+          <span class="user-pill-role">Atención T2 (Tarde)</span>
+        </div>
+
+        <div class="user-pill" onclick="seleccionarUsuario('YAMILEX', 'Yamilex Soto', 'OPERADOR', this)">
+          <span class="user-pill-icon">👷</span>
+          <span class="user-pill-name">YAMILEX</span>
+          <span class="user-pill-role">Atención T3 (Noche)</span>
+        </div>
+      </div>
+
+      <!-- Info del Perfil Seleccionado -->
+      <div id="infoPerfilSeleccionado" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:10px 14px;margin-bottom:16px;text-align:center">
+        <strong id="lblNombreUsuario" style="color:#0F2A4A;font-size:0.9rem">ADMINISTRADOR GENERAL</strong>
+        <p id="lblDescUsuario" style="font-size:0.75rem;color:#64748B;margin:2px 0 0">
+          Acceso ilimitado: Tanques, Tarifas, Auditoría, Liquidación y Emisión.
+        </p>
+      </div>
+
+      <div style="text-align:center;margin-bottom:6px">
+        <span style="font-size:0.82rem;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:1px">
+          2. Ingrese su Código PIN Secreto
+        </span>
+      </div>
+
+      <!-- Indicadores visuales de PIN (6 dígitos) -->
+      <div class="pin-display">
+        <div class="pin-dot" id="dot0"></div>
+        <div class="pin-dot" id="dot1"></div>
+        <div class="pin-dot" id="dot2"></div>
+        <div class="pin-dot" id="dot3"></div>
+        <div class="pin-dot" id="dot4"></div>
+        <div class="pin-dot" id="dot5"></div>
+      </div>
+
+      <!-- Teclado Numérico Touch -->
+      <div class="keypad">
+        <button type="button" class="key-btn" onclick="presionarDigito('1')">1</button>
+        <button type="button" class="key-btn" onclick="presionarDigito('2')">2</button>
+        <button type="button" class="key-btn" onclick="presionarDigito('3')">3</button>
+
+        <button type="button" class="key-btn" onclick="presionarDigito('4')">4</button>
+        <button type="button" class="key-btn" onclick="presionarDigito('5')">5</button>
+        <button type="button" class="key-btn" onclick="presionarDigito('6')">6</button>
+
+        <button type="button" class="key-btn" onclick="presionarDigito('7')">7</button>
+        <button type="button" class="key-btn" onclick="presionarDigito('8')">8</button>
+        <button type="button" class="key-btn" onclick="presionarDigito('9')">9</button>
+
+        <button type="button" class="key-btn key-action" onclick="limpiarPin()" title="Limpiar">C</button>
+        <button type="button" class="key-btn" onclick="presionarDigito('0')">0</button>
+        <button type="button" class="key-btn key-action" onclick="borrarUltimoDigito()" title="Borrar">⌫</button>
+      </div>
+
+      <!-- Mensaje de Estado / Error -->
+      <div id="msgAlertaLogin" style="display:none;padding:10px 14px;border-radius:10px;font-size:0.82rem;font-weight:700;text-align:center;margin-bottom:14px"></div>
+
+      <!-- Botón de Ingreso Directo -->
+      <button type="button" id="btnIngresar" class="btn btn-primary btn-full" onclick="procesarLogin()" style="background:#EA580C;border-color:#C2410C;padding:12px;font-size:1rem;font-weight:900">
+        🔑 Iniciar Sesión en el Sistema
+      </button>
+
+      <div style="text-align:center;margin-top:16px;font-size:0.75rem;color:#94A3B8">
+        Sede Oficial Jesús de Lauricocha • Sistema de Control Híbrido v2.0
+      </div>
+
+    </div>
+
+  </div>
+
+  <script src="js/security.js?v=20261019_125058"></script>
+  <script src="js/db.js?v=20261019_125058"></script>
+  <script>
+    let _usuarioSeleccionado = 'ADMIN';
+    let _nombreSeleccionado = 'Administrador de Estación';
+    let _rolSeleccionado = 'ADMIN';
+    let _pinIngresado = '';
+    const MAX_PIN_LEN = 8;
+
+    function seleccionarUsuario(usuario, nombre, rol, elem) {
+      _usuarioSeleccionado = usuario;
+      _nombreSeleccionado = nombre;
+      _rolSeleccionado = rol;
+      _pinIngresado = '';
+      actualizarDisplayPin();
+      ocultarMensaje();
+
+      document.querySelectorAll('.user-pill').forEach(p => p.classList.remove('active'));
+      if (elem) elem.classList.add('active');
+
+      const lblNombre = document.getElementById('lblNombreUsuario');
+      const lblDesc = document.getElementById('lblDescUsuario');
+
+      if (rol === 'ADMIN') {
+        lblNombre.textContent = '🛡️ ADMINISTRADOR (Control Total)';
+        lblDesc.textContent = 'Acceso ilimitado: Tanques, Tarifas, Auditoría, Liquidación y Emisión.';
+      } else {
+        lblNombre.textContent = `👷 ${nombre} (${usuario})`;
+        lblDesc.textContent = 'Personal de Atención: Emisión de vales, registro de despacho y consulta de ventas.';
+      }
+    }
+
+    function presionarDigito(digito) {
+      if (_pinIngresado.length < MAX_PIN_LEN) {
+        _pinIngresado += digito;
+        actualizarDisplayPin();
+        ocultarMensaje();
+
+        // Si ya ingresó al menos 6 dígitos para el PIN de producción, auto-validar
+        if (_pinIngresado.length === 6) {
+          setTimeout(procesarLogin, 150);
+        }
+      }
+    }
+
+    function borrarUltimoDigito() {
+      if (_pinIngresado.length > 0) {
+        _pinIngresado = _pinIngresado.slice(0, -1);
+        actualizarDisplayPin();
+        ocultarMensaje();
+      }
+    }
+
+    function limpiarPin() {
+      _pinIngresado = '';
+      actualizarDisplayPin();
+      ocultarMensaje();
+    }
+
+    function actualizarDisplayPin() {
+      for (let i = 0; i < 6; i++) {
+        const dot = document.getElementById('dot' + i);
+        if (dot) {
+          if (i < _pinIngresado.length) {
+            dot.classList.add('filled');
+          } else {
+            dot.classList.remove('filled');
+          }
+        }
+      }
+    }
+
+    function mostrarMensaje(texto, tipo = 'error') {
+      const box = document.getElementById('msgAlertaLogin');
+      box.style.display = 'block';
+      box.textContent = texto;
+      if (tipo === 'error') {
+        box.style.background = '#FEE2E2';
+        box.style.color = '#991B1B';
+        box.style.border = '1px solid #FCA5A5';
+      } else {
+        box.style.background = '#DCFCE7';
+        box.style.color = '#15803D';
+        box.style.border = '1px solid #86EFAC';
+      }
+    }
+
+    function ocultarMensaje() {
+      const box = document.getElementById('msgAlertaLogin');
+      box.style.display = 'none';
+    }
+
+    async function procesarLogin() {
+      if (!_pinIngresado || _pinIngresado.length < 4) {
+        mostrarMensaje('⚠️ Por favor ingrese su código PIN completo.', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('btnIngresar');
+      btn.disabled = true;
+      btn.textContent = 'Verificando credenciales...';
+
+      try {
+        const res = await DB.autenticarUsuario(_usuarioSeleccionado, _pinIngresado);
+        if (res.ok) {
+          mostrarMensaje(`✅ ¡Bienvenido(a) ${res.nombre}! Ingresando al sistema...`, 'success');
+          
+          setTimeout(() => {
+            // Si es operador, redirigir directamente al despacho de vales
+            if (res.rol === 'OPERADOR') {
+              window.location.href = 'agregar.html';
+            } else {
+              window.location.href = 'index.html';
+            }
+          }, 500);
+        } else {
+          limpiarPin();
+          mostrarMensaje(`❌ ${res.error || 'Código PIN incorrecto.'}`, 'error');
+          btn.disabled = false;
+          btn.textContent = '🔑 Iniciar Sesión en el Sistema';
+        }
+      } catch (err) {
+        limpiarPin();
+        mostrarMensaje(`❌ ${err.message}`, 'error');
+        btn.disabled = false;
+        btn.textContent = '🔑 Iniciar Sesión en el Sistema';
+      }
+    }
+
+    // Soporte para teclado físico (0-9, Backspace, Enter, Escape)
+    document.addEventListener('keydown', (e) => {
+      if (e.key >= '0' && e.key <= '9') {
+        presionarDigito(e.key);
+      } else if (e.key === 'Backspace') {
+        borrarUltimoDigito();
+      } else if (e.key === 'Enter') {
+        procesarLogin();
+      } else if (e.key === 'Escape') {
+        limpiarPin();
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // Si ya hay sesión activa, permitir ingresar directamente o cambiar usuario
+      const s = UserSession.obtener();
+      if (s) {
+        const uPill = Array.from(document.querySelectorAll('.user-pill')).find(p => p.textContent.includes(s.usuario));
+        if (uPill) {
+          uPill.click();
+        }
+      }
+    });
+  </script>
+</body>
+</html>
+

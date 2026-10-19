@@ -73,7 +73,8 @@ CREATE TABLE public.configuracion (
   precio_diesel NUMERIC(10,2) NOT NULL DEFAULT 16.80,
   precio_premium NUMERIC(10,2) NOT NULL DEFAULT 19.50,
   precio_regular NUMERIC(10,2) NOT NULL DEFAULT 17.20,
-  pin_hash TEXT NOT NULL DEFAULT '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4',
+  pin_hash TEXT NOT NULL DEFAULT 'f5bb261d9412a5ccd608fc6a4c4b8a8ff01ec6e8e90e73e09cfa15a7d22be8bf',
+  usuarios JSONB DEFAULT '[{"usuario":"ADMIN","nombre":"Administrador de Estación","rol":"ADMIN","pin_hash":"f5bb261d9412a5ccd608fc6a4c4b8a8ff01ec6e8e90e73e09cfa15a7d22be8bf","activo":true},{"usuario":"YANET","nombre":"Yanet Quispe","rol":"OPERADOR","pin_hash":"551e64290af89b026ed20617797ffe2b7cdcbcd401d894d105308089c86b3bf8","activo":true},{"usuario":"CRESILDO","nombre":"Cresildo Alvarado","rol":"OPERADOR","pin_hash":"45ee58c792f5a8b094a5126d33af19b0501b59782f92a0b1cdcc4834bb31f48c","activo":true},{"usuario":"YAMILEX","nombre":"Yamilex Soto","rol":"OPERADOR","pin_hash":"3f9e0144391381255366e5b359bd59a6ba7a6c53afd8eda48f6ea311a7b6b155","activo":true}]'::jsonb,
   actualizado_el TIMESTAMPTZ NOT NULL DEFAULT timezone('America/Lima', NOW())
 );
 
@@ -105,8 +106,8 @@ VALUES
 ON CONFLICT (producto) DO NOTHING;
 
 -- 9. SEMILLA DE CONFIGURACIÓN
-INSERT INTO public.configuracion (id, estacion_nombre, ruc, telefono, sede, precio_diesel, precio_premium, precio_regular)
-VALUES ('sullcairi_config', 'ESTACIÓN DE SERVICIOS SULLCAIRI', '20608945123', '962123456', 'jesus_de_lauricocha_huanuco', 16.80, 19.50, 17.20)
+INSERT INTO public.configuracion (id, estacion_nombre, ruc, telefono, sede, precio_diesel, precio_premium, precio_regular, pin_hash)
+VALUES ('sullcairi_config', 'ESTACIÓN DE SERVICIOS SULLCAIRI', '20608945123', '962123456', 'jesus_de_lauricocha_huanuco', 16.80, 19.50, 17.20, 'f5bb261d9412a5ccd608fc6a4c4b8a8ff01ec6e8e90e73e09cfa15a7d22be8bf')
 ON CONFLICT (id) DO NOTHING;
 
 -- 10. ACTIVAR REALTIME REPLICATION

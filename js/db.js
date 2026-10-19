@@ -54,8 +54,46 @@ const PRECIOS_DEFAULT = {
   'GASOHOL REGULAR': 17.20
 };
 
-// PIN ADMIN POR DEFECTO: 1234
-const DEFAULT_PIN_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4";
+// ====================================================================
+// USUARIOS Y CÓDIGOS OFICIALES DE PRODUCCIÓN (NO DEMO)
+// 1. ADMIN (Administrador General): PIN 849201
+// 2. YANET (Personal de Atención T1): PIN 713824
+// 3. CRESILDO (Personal de Atención T2): PIN 582941
+// 4. YAMILEX (Personal de Atención T3): PIN 936172
+// ====================================================================
+const USUARIOS_DEFAULT = [
+  {
+    usuario: 'ADMIN',
+    nombre: 'Administrador de Estación',
+    rol: 'ADMIN',
+    pin_hash: 'f5bb261d9412a5ccd608fc6a4c4b8a8ff01ec6e8e90e73e09cfa15a7d22be8bf', // PIN: 849201
+    activo: true
+  },
+  {
+    usuario: 'YANET',
+    nombre: 'Yanet Quispe',
+    rol: 'OPERADOR',
+    pin_hash: '551e64290af89b026ed20617797ffe2b7cdcbcd401d894d105308089c86b3bf8', // PIN: 713824
+    activo: true
+  },
+  {
+    usuario: 'CRESILDO',
+    nombre: 'Cresildo Alvarado',
+    rol: 'OPERADOR',
+    pin_hash: '45ee58c792f5a8b094a5126d33af19b0501b59782f92a0b1cdcc4834bb31f48c', // PIN: 582941
+    activo: true
+  },
+  {
+    usuario: 'YAMILEX',
+    nombre: 'Yamilex Soto',
+    rol: 'OPERADOR',
+    pin_hash: '3f9e0144391381255366e5b359bd59a6ba7a6c53afd8eda48f6ea311a7b6b155', // PIN: 936172
+    activo: true
+  }
+];
+
+// PIN ADMIN POR DEFECTO: 849201 (SHA-256)
+const DEFAULT_PIN_HASH = "f5bb261d9412a5ccd608fc6a4c4b8a8ff01ec6e8e90e73e09cfa15a7d22be8bf";
 
 // ====================================================================
 //  MOTOR INDEXEDDB CON TRANSACCIONES SEGURAS
@@ -134,6 +172,7 @@ const IDB = (() => {
             precio_premium: PRECIOS_DEFAULT['GASOHOL PREMIUM'],
             precio_regular: PRECIOS_DEFAULT['GASOHOL REGULAR'],
             pin_hash: DEFAULT_PIN_HASH,
+            usuarios: USUARIOS_DEFAULT,
             actualizado_el: new Date().toISOString()
           });
         }
@@ -285,9 +324,25 @@ const DB = {
         precio_premium: PRECIOS_DEFAULT['GASOHOL PREMIUM'],
         precio_regular: PRECIOS_DEFAULT['GASOHOL REGULAR'],
         pin_hash: DEFAULT_PIN_HASH,
+        usuarios: USUARIOS_DEFAULT,
         actualizado_el: new Date().toISOString()
       };
       await IDB.put('configuracion', cfg);
+    } else {
+      // Migración defensiva: asegurar lista de usuarios oficiales y pin no demo
+      let modificado = false;
+      if (!cfg.usuarios || !Array.isArray(cfg.usuarios) || cfg.usuarios.length === 0) {
+        cfg.usuarios = USUARIOS_DEFAULT;
+        modificado = true;
+      }
+      if (cfg.pin_hash === "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4") {
+        // Reemplazar viejo PIN demo 1234 por PIN oficial 849201
+        cfg.pin_hash = DEFAULT_PIN_HASH;
+        modificado = true;
+      }
+      if (modificado) {
+        await IDB.put('configuracion', cfg);
+      }
     }
     cfg.sede = SEDE_OFICIAL; // Inmutable
     return cfg;
@@ -301,6 +356,98 @@ const DB = {
     if (typeof window.onDatosActualizados === 'function') window.onDatosActualizados();
   },
 
+  async obtenerUsuarios() {
+    const cfg = await this.obtenerConfiguracion();
+    return cfg.usuarios || USUARIOS_DEFAULT;
+  },
+
+  async autenticarUsuario(usuarioId, pinIngresado) {
+    // 1. Verificar bloqueo por fuerza bruta
+    if (typeof SullcairiSecurity !== 'undefined' && SullcairiSecurity.estaPinBloqueado) {
+      const estadoBloqueo = SullcairiSecurity.estaPinBloqueado();
+      if (estadoBloqueo.bloqueado) {
+        throw new Error(`🔒 Acceso temporalmente bloqueado por seguridad. Intente nuevamente en ${estadoBloqueo.segundos} segundos.`);
+      }
+    }
+
+    const uId = String(usuarioId).trim().toUpperCase();
+    const pin = String(pinIngresado).trim();
+    if (!pin) throw new Error("Debe ingresar un código PIN de acceso.");
+
+    const usuarios = await this.obtenerUsuarios();
+    const usuarioObj = usuarios.find(u => u.usuario.toUpperCase() === uId);
+
+    if (!usuarioObj) {
+      throw new Error(`Usuario "${uId}" no encontrado en el sistema.`);
+    }
+
+    const hashIngresado = await SullcairiSecurity.hashPin(pin);
+    const cfg = await this.obtenerConfiguracion();
+
+    // Verificación especial para ADMIN: valida contra su pin_hash o cfg.pin_hash
+    let esValido = false;
+    if (uId === 'ADMIN') {
+      esValido = (hashIngresado === usuarioObj.pin_hash) || (hashIngresado === cfg.pin_hash);
+    } else {
+      esValido = (hashIngresado === usuarioObj.pin_hash);
+    }
+
+    // Registrar intento para protección anti-brute-force
+    if (typeof SullcairiSecurity !== 'undefined' && SullcairiSecurity.registrarIntentoPin) {
+      SullcairiSecurity.registrarIntentoPin(esValido);
+    }
+
+    if (!esValido) {
+      return { ok: false, error: "Código PIN incorrecto. Acceso denegado." };
+    }
+
+    // Iniciar sesión exitosa
+    if (typeof UserSession !== 'undefined') {
+      UserSession.iniciar(usuarioObj.usuario, usuarioObj.nombre, usuarioObj.rol);
+    }
+
+    return {
+      ok: true,
+      usuario: usuarioObj.usuario,
+      nombre: usuarioObj.nombre,
+      rol: usuarioObj.rol
+    };
+  },
+
+  async cambiarPinUsuario(usuarioId, pinActual, pinNuevo) {
+    const uId = String(usuarioId).trim().toUpperCase();
+    const pinN = String(pinNuevo).trim();
+
+    if (!SullcairiSecurity.isValid.pin(pinN)) {
+      throw new Error("El nuevo PIN debe tener entre 4 y 8 dígitos numéricos.");
+    }
+
+    // Si no es admin autenticado, validar pinActual
+    if (!UserSession.esAdmin()) {
+      const auth = await this.autenticarUsuario(uId, pinActual);
+      if (!auth.ok) throw new Error("El PIN actual es incorrecto.");
+    }
+
+    const cfg = await this.obtenerConfiguracion();
+    const usuarios = cfg.usuarios || [...USUARIOS_DEFAULT];
+    const uIndex = usuarios.findIndex(u => u.usuario.toUpperCase() === uId);
+
+    if (uIndex === -1) {
+      throw new Error("Usuario no encontrado.");
+    }
+
+    const nuevoHash = await SullcairiSecurity.hashPin(pinN);
+    usuarios[uIndex].pin_hash = nuevoHash;
+    cfg.usuarios = usuarios;
+
+    if (uId === 'ADMIN') {
+      cfg.pin_hash = nuevoHash;
+    }
+
+    await this.guardarConfiguracion(cfg);
+    return true;
+  },
+
   async verificarPinAdmin(pinIngresado) {
     // 1. Verificar si está bloqueado por fuerza bruta
     if (typeof SullcairiSecurity !== 'undefined' && SullcairiSecurity.estaPinBloqueado) {
@@ -312,7 +459,13 @@ const DB = {
 
     const cfg = await this.obtenerConfiguracion();
     const hash = await SullcairiSecurity.hashPin(pinIngresado);
-    const correcto = (hash === (cfg.pin_hash || DEFAULT_PIN_HASH));
+
+    // Valida contra cfg.pin_hash o contra el usuario ADMIN
+    const usuarios = cfg.usuarios || USUARIOS_DEFAULT;
+    const adminUser = usuarios.find(u => u.usuario === 'ADMIN');
+    const adminHash = adminUser ? adminUser.pin_hash : DEFAULT_PIN_HASH;
+
+    const correcto = (hash === (cfg.pin_hash || DEFAULT_PIN_HASH)) || (hash === adminHash);
 
     // 2. Registrar intento en rate-limiter
     if (typeof SullcairiSecurity !== 'undefined' && SullcairiSecurity.registrarIntentoPin) {
@@ -333,6 +486,14 @@ const DB = {
     const nuevoHash = await SullcairiSecurity.hashPin(pinNuevo);
     const cfg = await this.obtenerConfiguracion();
     cfg.pin_hash = nuevoHash;
+
+    const usuarios = cfg.usuarios || [...USUARIOS_DEFAULT];
+    const adminIdx = usuarios.findIndex(u => u.usuario === 'ADMIN');
+    if (adminIdx !== -1) {
+      usuarios[adminIdx].pin_hash = nuevoHash;
+      cfg.usuarios = usuarios;
+    }
+
     await this.guardarConfiguracion(cfg);
   },
 

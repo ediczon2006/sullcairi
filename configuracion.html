@@ -5,7 +5,7 @@
   <meta charset="UTF-8"/>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/><meta http-equiv="Pragma" content="no-cache"/><meta http-equiv="Expires" content="0"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>ESTACIÓN SULLCAIRI — Tarifas & Ajustes</title>
-  <link rel="stylesheet" href="css/app.css?v=20261019_120004_120004"/>
+  <link rel="stylesheet" href="css/app.css?v=20261019_125058"/>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
 <body>
@@ -118,17 +118,17 @@
       <!-- Bloque 3: Seguridad y Cambio de PIN Admin -->
       <div class="card" style="margin-bottom:22px;border:1.5px solid var(--borde)">
         <div class="card-title">
-          <span>🔒 PIN de Administrador (Operaciones Críticas)</span>
+          <span>🔒 PIN Maestro de Administrador (Acceso Total)</span>
           <span class="badge" style="background:#FEE2E2;color:#991B1B;font-size:0.75rem">Cifrado SHA-256</span>
         </div>
         <p style="font-size:0.83rem;color:var(--gris);margin-bottom:16px">
-          El PIN de administrador protege las acciones de alto riesgo (anulación de vales, ajuste físico de varillaje, liquidaciones masivas y restauración de respaldos).
+          El PIN de administrador ("ADMIN") autoriza las acciones de control total: varillaje y tanques, cambio de tarifas, anulación de vales, liquidaciones y configuración del sistema.
         </p>
 
         <form id="formCambiarPin" onsubmit="cambiarPinAdmin(event)">
           <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:14px;margin-bottom:18px">
             <div>
-              <label class="form-label" for="pinActual">PIN Actual <span style="color:var(--rojo)">*</span></label>
+              <label class="form-label" for="pinActual">PIN Actual de Administrador <span style="color:var(--rojo)">*</span></label>
               <input type="password" id="pinActual" class="form-input" placeholder="PIN actual" maxlength="8" required style="letter-spacing:3px;text-align:center" />
             </div>
 
@@ -144,8 +144,50 @@
           </div>
 
           <div style="display:flex;justify-content:flex-end">
-            <button type="submit" class="btn btn-outline" style="border-color:#DC2626;color:#DC2626">
-              🔑 Actualizar PIN de Seguridad
+            <button type="submit" class="btn btn-primary" style="background:#EA580C;border-color:#C2410C">
+              🔑 Actualizar PIN de Administrador
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Bloque 3.1: Gestión de Códigos del Personal de Atención (Griferos) -->
+      <div class="card" style="margin-bottom:22px;border:1.5px solid var(--borde)">
+        <div class="card-title">
+          <span>👥 Personal de Atención — Códigos de Acceso (PIN)</span>
+          <span class="badge" style="background:#E0F2FE;color:#0284C7;font-size:0.75rem">Producción Oficial</span>
+        </div>
+        <p style="font-size:0.83rem;color:var(--gris);margin-bottom:16px">
+          Asigne o modifique los códigos de acceso para los atendedores de la estación. Cada operador ingresa con su código personal para emitir vales en su turno de trabajo.
+        </p>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:12px;margin-bottom:18px" id="gridListaUsuarios">
+          <!-- Carga dinámica de usuarios -->
+        </div>
+
+        <form id="formCambiarPinOperador" onsubmit="actualizarPinOperador(event)" style="background:#F8FAFC;border:1px solid var(--borde);padding:16px;border-radius:12px">
+          <h4 style="font-size:0.88rem;color:var(--azul);margin:0 0 12px">🔑 Modificar Código de Atendedor</h4>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:14px;margin-bottom:14px">
+            <div>
+              <label class="form-label" for="selUsuarioPin">Seleccionar Atendedor</label>
+              <select id="selUsuarioPin" class="form-select" style="font-weight:700">
+                <option value="YANET">YANET (Yanet Quispe - T1)</option>
+                <option value="CRESILDO">CRESILDO (Cresildo Alvarado - T2)</option>
+                <option value="YAMILEX">YAMILEX (Yamilex Soto - T3)</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label" for="pinOperadorNuevo">Nuevo PIN (4 a 8 dígitos) <span style="color:var(--rojo)">*</span></label>
+              <input type="password" id="pinOperadorNuevo" class="form-input" placeholder="Nuevo código" maxlength="8" required style="letter-spacing:3px;text-align:center" />
+            </div>
+            <div>
+              <label class="form-label" for="pinOperadorConfirmar">Confirmar PIN <span style="color:var(--rojo)">*</span></label>
+              <input type="password" id="pinOperadorConfirmar" class="form-input" placeholder="Confirmar" maxlength="8" required style="letter-spacing:3px;text-align:center" />
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end">
+            <button type="submit" class="btn btn-outline" style="border-color:var(--azul);color:var(--azul)">
+              💾 Guardar Nuevo Código de Operador
             </button>
           </div>
         </form>
@@ -168,9 +210,9 @@
 
   </main>
 
-  <script src="js/security.js?v=20261019_120004_120004"></script>
-  <script src="js/db.js?v=20261019_120004_120004"></script>
-  <script src="js/sidebar.js?v=20261019_120004_120004"></script>
+  <script src="js/security.js?v=20261019_125058"></script>
+  <script src="js/db.js?v=20261019_125058"></script>
+  <script src="js/sidebar.js?v=20261019_125058"></script>
   <script>
     async function cargarConfiguracion() {
       try {
@@ -217,6 +259,64 @@
       }
     }
 
+    async function renderizarListaUsuarios() {
+      const container = document.getElementById('gridListaUsuarios');
+      if (!container) return;
+      try {
+        const usuarios = await DB.obtenerUsuarios();
+        container.innerHTML = usuarios.map(u => {
+          const esAdmin = u.rol === 'ADMIN';
+          return `
+            <div style="background:#FFFFFF;border:1.5px solid ${esAdmin ? '#FCD34D' : '#E2E8F0'};border-radius:12px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,0.05)">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                <div>
+                  <strong style="color:var(--azul);font-size:0.92rem;display:flex;align-items:center;gap:6px">
+                    <span>${esAdmin ? '🛡️' : '👷'}</span> ${esc(u.usuario)}
+                  </strong>
+                  <div style="font-size:0.75rem;color:var(--gris);margin-top:2px">${esc(u.nombre)}</div>
+                </div>
+                <span class="badge" style="font-size:0.68rem;padding:3px 8px;font-weight:700;background:${esAdmin ? '#FEF3C7' : '#E0F2FE'};color:${esAdmin ? '#92400E' : '#0369A1'}">
+                  ${esAdmin ? 'CONTROL TOTAL' : 'ATENCIÓN'}
+                </span>
+              </div>
+              <div style="margin-top:8px;font-size:0.72rem;color:#059669;display:flex;align-items:center;gap:4px">
+                <span>🔒 PIN Cifrado en Base de Datos</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (err) {
+        console.error('Error al listar usuarios:', err);
+      }
+    }
+
+    async function actualizarPinOperador(e) {
+      e.preventDefault();
+      const uId = document.getElementById('selUsuarioPin').value;
+      const nuevo = document.getElementById('pinOperadorNuevo').value.trim();
+      const conf = document.getElementById('pinOperadorConfirmar').value.trim();
+
+      if (nuevo.length < 4 || nuevo.length > 8) {
+        alert("El nuevo PIN debe tener entre 4 y 8 dígitos numéricos.");
+        return;
+      }
+
+      if (nuevo !== conf) {
+        alert("La confirmación del PIN no coincide.");
+        return;
+      }
+
+      try {
+        await DB.cambiarPinUsuario(uId, '', nuevo);
+        document.getElementById('pinOperadorNuevo').value = '';
+        document.getElementById('pinOperadorConfirmar').value = '';
+        mostrarNotificacionToast(`✅ Código de acceso de ${uId} actualizado correctamente.`, 'success');
+        sincronizarConSupabase(false);
+      } catch (err) {
+        alert("Error al actualizar código: " + err.message);
+      }
+    }
+
     async function cambiarPinAdmin(e) {
       e.preventDefault();
       const actual = document.getElementById('pinActual').value.trim();
@@ -225,7 +325,7 @@
 
       const okActual = await DB.verificarPinAdmin(actual);
       if (!okActual) {
-        alert("❌ El PIN actual ingresado es incorrecto.");
+        alert("❌ El PIN actual de Administrador ingresado es incorrecto.");
         return;
       }
 
@@ -240,17 +340,15 @@
       }
 
       try {
-        const hash = await hashSha256(nuevo);
-        const cfg = await DB.obtenerConfiguracion();
-        cfg.pin_hash = hash;
-        await IDB.put('configuracion', cfg);
+        await DB.cambiarPinAdmin(actual, nuevo);
 
         document.getElementById('pinActual').value = '';
         document.getElementById('pinNuevo').value = '';
         document.getElementById('pinConfirmar').value = '';
 
-        mostrarNotificacionToast("🔑 ¡PIN de Administrador actualizado exitosamente!", 'success');
+        mostrarNotificacionToast("🔑 ¡PIN Maestro de Administrador actualizado exitosamente!", 'success');
         sincronizarConSupabase(false);
+        renderizarListaUsuarios();
       } catch (err) {
         alert("Error al actualizar PIN: " + err.message);
       }
@@ -279,12 +377,23 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
+      // Validar acceso exclusivo de administrador
+      if (typeof UserSession !== 'undefined') {
+        const ses = UserSession.obtener();
+        if (!ses || ses.rol !== 'ADMIN') {
+          solicitarAutorizacionAdmin('configuracion.html');
+          return;
+        }
+      }
+
       renderSidebar('configuracion');
       cargarConfiguracion();
+      renderizarListaUsuarios();
     });
   </script>
 </body>
 </html>
+
 
 
 

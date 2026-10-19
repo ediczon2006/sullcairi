@@ -79,7 +79,8 @@ create table public.configuracion (
   precio_diesel numeric(10,2) not null default 16.80,
   precio_premium numeric(10,2) not null default 19.50,
   precio_regular numeric(10,2) not null default 17.20,
-  pin_hash text not null default '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4',
+  pin_hash text not null default 'f5bb261d9412a5ccd608fc6a4c4b8a8ff01ec6e8e90e73e09cfa15a7d22be8bf',
+  usuarios jsonb default '[{"usuario":"ADMIN","nombre":"Administrador de Estación","rol":"ADMIN","pin_hash":"f5bb261d9412a5ccd608fc6a4c4b8a8ff01ec6e8e90e73e09cfa15a7d22be8bf","activo":true},{"usuario":"YANET","nombre":"Yanet Quispe","rol":"OPERADOR","pin_hash":"551e64290af89b026ed20617797ffe2b7cdcbcd401d894d105308089c86b3bf8","activo":true},{"usuario":"CRESILDO","nombre":"Cresildo Alvarado","rol":"OPERADOR","pin_hash":"45ee58c792f5a8b094a5126d33af19b0501b59782f92a0b1cdcc4834bb31f48c","activo":true},{"usuario":"YAMILEX","nombre":"Yamilex Soto","rol":"OPERADOR","pin_hash":"3f9e0144391381255366e5b359bd59a6ba7a6c53afd8eda48f6ea311a7b6b155","activo":true}]'::jsonb,
   actualizado_el timestamptz not null default timezone('America/Lima', now())
 );
 
@@ -104,8 +105,8 @@ values
 on conflict (producto) do nothing;
 
 -- 9. Semilla de configuración
-insert into public.configuracion (id, estacion_nombre, ruc, telefono, sede, precio_diesel, precio_premium, precio_regular)
-values ('sullcairi_config', 'ESTACIÓN DE SERVICIOS SULLCAIRI', '20608945123', '962123456', 'jesus_de_lauricocha_huanuco', 16.80, 19.50, 17.20)
+insert into public.configuracion (id, estacion_nombre, ruc, telefono, sede, precio_diesel, precio_premium, precio_regular, pin_hash)
+values ('sullcairi_config', 'ESTACIÓN DE SERVICIOS SULLCAIRI', '20608945123', '962123456', 'jesus_de_lauricocha_huanuco', 16.80, 19.50, 17.20, 'f5bb261d9412a5ccd608fc6a4c4b8a8ff01ec6e8e90e73e09cfa15a7d22be8bf')
 on conflict (id) do nothing;
 
 -- 10. Activar Realtime
@@ -196,9 +197,18 @@ function mostrarNotificacionToast(mensaje, tipo = 'info') {
   }, 3500);
 }
 
+function cerrarSesionSistema() {
+  if (confirm("¿Desea cerrar la sesión actual del sistema?")) {
+    if (typeof UserSession !== 'undefined') UserSession.cerrar();
+    window.location.href = 'login.html';
+  }
+}
+
 function renderSidebar(activePage) {
   const sidebar = document.getElementById('sidebar');
   if (!sidebar) return;
+
+  const sesionActiva = typeof UserSession !== 'undefined' ? UserSession.obtener() : null;
 
   // 1. Inyectar Barra Superior Móvil si no existe
   if (!document.getElementById('mobile-topbar')) {
@@ -213,9 +223,15 @@ function renderSidebar(activePage) {
           <span class="mobile-brand-sub">Jesús de Lauricocha</span>
         </div>
       </div>
-      <div class="mobile-cloud-pill" onclick="abrirModalSupabase()" title="Supabase Cloud">
-        <span id="mobileSupaDot" class="mobile-cloud-dot"></span>
-        <span>☁️</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <div class="mobile-cloud-pill" onclick="window.location.href='login.html'" title="Usuario Activo">
+          <span>${sesionActiva ? (sesionActiva.rol === 'ADMIN' ? '🛡️' : '👷') : '🔑'}</span>
+          <span style="font-size:0.72rem;font-weight:700">${sesionActiva ? esc(sesionActiva.usuario) : 'Login'}</span>
+        </div>
+        <div class="mobile-cloud-pill" onclick="abrirModalSupabase()" title="Supabase Cloud">
+          <span id="mobileSupaDot" class="mobile-cloud-dot"></span>
+          <span>☁️</span>
+        </div>
       </div>
     `;
     document.body.prepend(topbar);
@@ -229,27 +245,57 @@ function renderSidebar(activePage) {
     document.body.appendChild(overlay);
   }
 
-  // 3. Menú de navegación
+  // 3. Menú de navegación con distinción de roles
   const links = [
-    { href: 'index.html',         icon: '🏠', text: 'Panel General',        key: 'index' },
-    { href: 'vales.html',         icon: '⛽', text: 'Registro de Vales',    key: 'vales' },
-    { href: 'agregar.html',       icon: '➕', text: 'Emitir Vale',          key: 'agregar' },
-    { href: 'cobranza.html',      icon: '💳', text: 'Cuentas por Cobrar',   key: 'cobranza' },
-    { href: 'tanques.html',       icon: '🛢️', text: 'Tanques & Varillaje',  key: 'tanques' },
-    { href: 'diario.html',        icon: '📋', text: 'Registro Diario',      key: 'diario' },
-    { href: 'importexport.html',  icon: '📊', text: 'Importar / Exportar',  key: 'importexport' },
-    { href: 'configuracion.html', icon: '⚙️', text: 'Tarifas & Ajustes',    key: 'configuracion' }
+    { href: 'index.html',         icon: '🏠', text: 'Panel General',        key: 'index', adminOnly: false },
+    { href: 'vales.html',         icon: '⛽', text: 'Registro de Vales',    key: 'vales', adminOnly: false },
+    { href: 'agregar.html',       icon: '➕', text: 'Emitir Vale',          key: 'agregar', adminOnly: false },
+    { href: 'cobranza.html',      icon: '💳', text: 'Cuentas por Cobrar',   key: 'cobranza', adminOnly: false },
+    { href: 'tanques.html',       icon: '🛢️', text: 'Tanques & Varillaje',  key: 'tanques', adminOnly: true },
+    { href: 'diario.html',        icon: '📋', text: 'Registro Diario',      key: 'diario', adminOnly: false },
+    { href: 'importexport.html',  icon: '📊', text: 'Importar / Exportar',  key: 'importexport', adminOnly: true },
+    { href: 'configuracion.html', icon: '⚙️', text: 'Tarifas & Ajustes',    key: 'configuracion', adminOnly: true }
   ];
 
+  const userBoxHtml = sesionActiva ? `
+    <div style="background:#0F172A;border:1.5px solid #334155;border-radius:10px;padding:8px 10px;margin:10px 14px 6px;text-align:center">
+      <div style="display:flex;align-items:center;justify-content:center;gap:6px">
+        <span>${sesionActiva.rol === 'ADMIN' ? '🛡️' : '👷'}</span>
+        <strong style="font-size:0.82rem;color:#F8FAFC">${esc(sesionActiva.usuario)}</strong>
+        <span class="badge" style="font-size:0.65rem;padding:2px 6px;font-weight:800;background:${sesionActiva.rol === 'ADMIN' ? '#FEF3C7' : '#E0F2FE'};color:${sesionActiva.rol === 'ADMIN' ? '#92400E' : '#0369A1'}">
+          ${sesionActiva.rol === 'ADMIN' ? 'ADMIN' : 'ATENCIÓN'}
+        </span>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <a href="login.html" class="btn btn-outline btn-sm btn-full" style="padding:3px 6px;font-size:0.7rem;color:#CBD5E1;border-color:#475569;text-decoration:none">
+          🔄 Cambiar
+        </a>
+        <button onclick="cerrarSesionSistema()" class="btn btn-outline btn-sm" style="padding:3px 8px;font-size:0.7rem;color:#FCA5A5;border-color:#7F1D1D" title="Cerrar Sesión">
+          🚪 Salir
+        </button>
+      </div>
+    </div>
+  ` : `
+    <div style="background:#FFF7ED;border:1.5px solid #FDBA74;border-radius:10px;padding:8px 10px;margin:10px 14px 6px;text-align:center">
+      <div style="font-size:0.75rem;font-weight:700;color:#9A3412">⚠️ Sin Sesión Activa</div>
+      <a href="login.html" class="btn btn-primary btn-sm btn-full" style="background:#EA580C;border-color:#C2410C;padding:4px 8px;font-size:0.75rem;margin-top:6px;text-decoration:none;display:block">
+        🔑 Iniciar Sesión
+      </a>
+    </div>
+  `;
+
   sidebar.innerHTML = `
-    <div class="sidebar-logo" style="text-align:center;padding:18px 14px 12px;position:relative">
+    <div class="sidebar-logo" style="text-align:center;padding:18px 14px 8px;position:relative">
       <button onclick="cerrarSidebarMobile()" class="btn-sidebar-close" style="position:absolute;top:10px;right:10px;background:none;border:none;color:#94A3B8;font-size:1.4rem;cursor:pointer;display:none" title="Cerrar Menú">✕</button>
-      <img src="img/logo.png" alt="Sullcairi" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:2.5px solid #F97316;box-shadow:0 0 18px rgba(249,115,22,0.45);display:block;margin:0 auto 8px;background:#030712" onerror="this.src='img/logo.jpg'" />
+      <img src="img/logo.png" alt="Sullcairi" style="width:70px;height:70px;border-radius:50%;object-fit:cover;border:2.5px solid #F97316;box-shadow:0 0 18px rgba(249,115,22,0.45);display:block;margin:0 auto 8px;background:#030712" onerror="this.src='img/logo.jpg'" />
       <h1 style="font-size:0.95rem;margin:0;letter-spacing:0.5px;color:#F8FAFC">ESTACIÓN SULLCAIRI</h1>
       <p style="font-size:0.75rem;margin:3px 0 0;color:#94A3B8">Jesús de Lauricocha • Huánuco</p>
       <div style="margin-top:5px;font-size:0.72rem;color:#F97316;font-weight:600">
         📞 962 123 456
       </div>
+      
+      ${userBoxHtml}
+
       <div class="sidebar-supa-pill" onclick="abrirModalSupabase()" title="Configuración de Supabase Cloud">
         <div style="display:flex;align-items:center;gap:6px">
           <span style="font-size:0.95rem">☁️</span>
@@ -258,13 +304,21 @@ function renderSidebar(activePage) {
         <span id="sidebarSupaDot" style="width:9px;height:9px;border-radius:50%;background:#F59E0B" title="Estado"></span>
       </div>
     </div>
-    <div style="flex:1;padding:8px 0;overflow-y:auto">
-      ${links.map(l => `
-        <a href="${l.href}" class="nav-link${activePage === l.key ? ' active' : ''}" onclick="cerrarSidebarMobile()">
-          <span class="nav-icon">${l.icon}</span>
-          <span>${l.text}</span>
-        </a>
-      `).join('')}
+    <div style="flex:1;padding:6px 0;overflow-y:auto">
+      ${links.map(l => {
+        const esAdmin = sesionActiva && sesionActiva.rol === 'ADMIN';
+        const candado = l.adminOnly && !esAdmin ? ' 🔒' : '';
+        const clickHandler = l.adminOnly && !esAdmin 
+          ? `event.preventDefault(); solicitarAutorizacionAdmin('${l.href}');` 
+          : 'cerrarSidebarMobile();';
+
+        return `
+          <a href="${l.href}" class="nav-link${activePage === l.key ? ' active' : ''}" onclick="${clickHandler}">
+            <span class="nav-icon">${l.icon}</span>
+            <span>${l.text}${candado}</span>
+          </a>
+        `;
+      }).join('')}
     </div>
     <div class="sidebar-stats" id="sidebarStats">
       <p>⛽ Cargando métricas...</p>
@@ -352,8 +406,107 @@ async function actualizarEstadisticasSidebar() {
   }
 }
 
+// ========================================================
+// CONTROL DE ACCESO DEFENSIVO Y ELEVACIÓN DE PRIVILEGIOS
+// ========================================================
+let _destinoAdminPendiente = null;
+
+function solicitarAutorizacionAdmin(hrefDestino) {
+  _destinoAdminPendiente = hrefDestino;
+
+  let modal = document.getElementById('modalAuthAdminRapido');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'modalAuthAdminRapido';
+    modal.className = 'modal-bg';
+    modal.innerHTML = `
+      <div class="modal" style="max-width:400px;text-align:center">
+        <div class="modal-header">
+          <h3>🔒 Acceso de Administrador</h3>
+          <button class="modal-close" onclick="cerrarModal('modalAuthAdminRapido')">✕</button>
+        </div>
+        <p style="font-size:0.83rem;color:var(--gris);margin-bottom:14px">
+          Esta sección ("${hrefDestino}") está reservada para el <strong>Administrador</strong>. Ingrese su código PIN de seguridad para ingresar:
+        </p>
+        <input type="password" id="inputPinAdminRapido" class="form-input" placeholder="PIN de Administrador" maxlength="8" style="text-align:center;font-size:1.3rem;letter-spacing:4px;margin-bottom:14px" />
+        <div id="alertaErrorAuthRapido" style="display:none;color:#991B1B;background:#FEE2E2;border:1px solid #FECACA;padding:6px;border-radius:6px;font-size:0.75rem;margin-bottom:12px;font-weight:700"></div>
+        <div style="display:flex;gap:10px">
+          <button type="button" class="btn btn-outline btn-full" onclick="cerrarModal('modalAuthAdminRapido')">Cancelar</button>
+          <button type="button" class="btn btn-primary btn-full" onclick="confirmarAuthAdminRapido()" style="background:#EA580C;border-color:#C2410C">Entrar</button>
+        </div>
+        <div style="margin-top:12px">
+          <a href="login.html" style="font-size:0.75rem;color:var(--azul);text-decoration:none;font-weight:700">
+            O cambiar de usuario en la pantalla de inicio ➔
+          </a>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    document.getElementById('inputPinAdminRapido').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') confirmarAuthAdminRapido();
+    });
+  }
+
+  const errBox = document.getElementById('alertaErrorAuthRapido');
+  if (errBox) errBox.style.display = 'none';
+  const inp = document.getElementById('inputPinAdminRapido');
+  if (inp) inp.value = '';
+
+  abrirModal('modalAuthAdminRapido');
+  setTimeout(() => { if (inp) inp.focus(); }, 150);
+}
+
+async function confirmarAuthAdminRapido() {
+  const pin = (document.getElementById('inputPinAdminRapido').value || '').trim();
+  const errBox = document.getElementById('alertaErrorAuthRapido');
+
+  if (!pin) {
+    if (errBox) {
+      errBox.textContent = 'Ingrese el PIN de Administrador.';
+      errBox.style.display = 'block';
+    }
+    return;
+  }
+
+  try {
+    const ok = await DB.verificarPinAdmin(pin);
+    if (!ok) {
+      if (errBox) {
+        errBox.textContent = '❌ PIN de Administrador incorrecto.';
+        errBox.style.display = 'block';
+      }
+      return;
+    }
+
+    // Elevación de sesión a Admin
+    if (typeof UserSession !== 'undefined') {
+      UserSession.iniciar('ADMIN', 'Administrador de Estación', 'ADMIN');
+    }
+
+    cerrarModal('modalAuthAdminRapido');
+    if (_destinoAdminPendiente) {
+      window.location.href = _destinoAdminPendiente;
+    }
+  } catch (err) {
+    if (errBox) {
+      errBox.textContent = err.message;
+      errBox.style.display = 'block';
+    }
+  }
+}
+
 // Iniciar al cargar
 document.addEventListener('DOMContentLoaded', () => {
   const pre = document.getElementById('codigoSqlSupa');
   if (pre) pre.textContent = SQL_SCHEMA_SUPABASE;
+
+  // Verificación pasiva de sesión: si no está en login y no hay sesión, advertir
+  if (typeof UserSession !== 'undefined' && !window.location.pathname.includes('login.html')) {
+    if (!UserSession.estaAutenticado()) {
+      // Redirigir a login para asegurar identificación del operador
+      window.location.href = 'login.html';
+    }
+  }
 });
+
