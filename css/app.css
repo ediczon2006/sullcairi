@@ -588,7 +588,8 @@ tr.row--void td {
   padding: 16px;
 }
 
-.modal-bg.open {
+.modal-bg.open,
+.modal-bg.active {
   display: flex;
 }
 
