@@ -93,7 +93,7 @@
           <thead>
             <tr>
               <th>N° Vale</th>
-              <th>Fecha</th>
+              <th>Emisión / Recojo</th>
               <th>Turno</th>
               <th>Cliente / Entidad</th>
               <th>Placa / Conductor</th>
@@ -122,14 +122,18 @@
         </div>
         <form id="formEditVale" onsubmit="guardarEdicionVale(event)">
           <input type="hidden" id="editId" />
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
             <div>
               <label class="form-label" for="editNVale">N° Vale</label>
               <input type="number" id="editNVale" class="form-input" required />
             </div>
             <div>
-              <label class="form-label" for="editFecha">Fecha</label>
+              <label class="form-label" for="editFecha">Fecha Emisión</label>
               <input type="date" id="editFecha" class="form-input" required />
+            </div>
+            <div>
+              <label class="form-label" for="editFechaRecojo">Fecha Recojo</label>
+              <input type="date" id="editFechaRecojo" class="form-input" required />
             </div>
           </div>
 
@@ -296,7 +300,10 @@
           return `
             <tr>
               <td><strong style="color:var(--azul)">#${v.n_vale}</strong></td>
-              <td>${esc(v.fecha)}</td>
+              <td>
+                <strong style="color:var(--azul)">${esc(v.fecha)}</strong>
+                ${v.fecha_recojo ? `<br><small style="color:#0284C7;font-weight:600">🚚 Recojo: ${esc(v.fecha_recojo)}</small>` : ''}
+              </td>
               <td><span style="font-size:0.75rem;color:var(--gris)">${esc(v.turno || 'T1')}</span></td>
               <td>
                 <strong>${esc(v.cliente)}</strong>
@@ -349,7 +356,8 @@ RUC: 20608945123 | Tel: 962 123 456
 📄 *COMPROBANTE DE VALE DE COMBUSTIBLE*
 ────────────────────────
 *N° Vale:* #${v.n_vale}
-*Fecha:* ${v.fecha} (${v.turno || 'T1'})
+*Fecha Emisión:* ${v.fecha} (${v.turno || 'T1'})
+*Fecha Recojo:* ${v.fecha_recojo || v.fecha}
 *Cliente:* ${v.cliente}
 *Placa:* ${v.placa || '-'}
 *Conductor:* ${v.conductor || '-'}
@@ -387,6 +395,7 @@ _Conserve este comprobante para su liquidación institucional._`;
       document.getElementById('editId').value = v.id;
       document.getElementById('editNVale').value = v.n_vale;
       document.getElementById('editFecha').value = v.fecha;
+      document.getElementById('editFechaRecojo').value = v.fecha_recojo || v.fecha;
       document.getElementById('editCliente').value = v.cliente;
       document.getElementById('editTelefono').value = v.telefono || '';
       document.getElementById('editPlaca').value = v.placa || '';
@@ -412,6 +421,7 @@ _Conserve este comprobante para su liquidación institucional._`;
       const id = Number(document.getElementById('editId').value);
       const n_vale = Number(document.getElementById('editNVale').value);
       const fecha = document.getElementById('editFecha').value;
+      const fecha_recojo = document.getElementById('editFechaRecojo').value || fecha;
       const cliente = sanitizeString(document.getElementById('editCliente').value.trim().toUpperCase());
       const telefono = sanitizeString(document.getElementById('editTelefono').value.trim());
       const placa = sanitizeString(document.getElementById('editPlaca').value.trim().toUpperCase());
@@ -425,7 +435,7 @@ _Conserve este comprobante para su liquidación institucional._`;
 
       try {
         await DB.guardarVale({
-          id, n_vale, fecha, cliente, telefono, placa, conductor,
+          id, n_vale, fecha, fecha_recojo, cliente, telefono, placa, conductor,
           producto, cantidad, precio, total, grifero, estado
         });
 
@@ -439,31 +449,16 @@ _Conserve este comprobante para su liquidación institucional._`;
 
     function solicitarAnulacionVale(id) {
       _accionPendiente = async () => {
-        await DB.eliminarVale(id);
-        mostrarNotificacionToast("Vale anulado / eliminado del registro.", 'info');
+        await DB.actualizarEstadoVale(id, 'ANULADO');
+        mostrarNotificacionToast("Vale marcado como ANULADO y stock restituido al tanque.", 'info');
         await cargarVales();
       };
 
       document.getElementById('tituloModalPin').textContent = '⚠️ Anular Vale con PIN';
-      document.getElementById('descModalPin').textContent = 'Para anular o eliminar este vale y restablecer el stock, ingrese el PIN de administrador:';
+      document.getElementById('descModalPin').textContent = 'Para anular este vale y restituir el combustible al tanque, ingrese el PIN de administrador:';
       document.getElementById('inputPinAdmin').value = '';
       abrirModal('modalSeguridadPin');
     }
-
-    document.getElementById('btnConfirmarPinAccion').onclick = async () => {
-      const pin = document.getElementById('inputPinAdmin').value.trim();
-      const ok = await DB.verificarPinAdmin(pin);
-      if (!ok) {
-        alert("❌ PIN de administrador incorrecto.");
-        return;
-      }
-
-      cerrarModal('modalSeguridadPin');
-      if (typeof _accionPendiente === 'function') {
-        await _accionPendiente();
-        _accionPendiente = null;
-      }
-    };
 
     function exportarValesFiltradosExcel() {
       if (_valesFiltrados.length === 0) {
@@ -471,11 +466,12 @@ _Conserve este comprobante para su liquidación institucional._`;
         return;
       }
 
-      let csv = "\uFEFFN_VALE,FECHA,TURNO,CLIENTE,LUGAR,TELEFONO,PLACA,CONDUCTOR,PRODUCTO,CANTIDAD_GLN,PRECIO_UNIT,TOTAL_SOLES,GRIFERO,ESTADO,OBSERVACION\n";
+      let csv = "\uFEFFN_VALE,FECHA_EMISION,FECHA_RECOJO,TURNO,CLIENTE,LUGAR,TELEFONO,PLACA,CONDUCTOR,PRODUCTO,CANTIDAD_GLN,PRECIO_UNIT,TOTAL_SOLES,GRIFERO,ESTADO,OBSERVACION\n";
       _valesFiltrados.forEach(v => {
         csv += [
           v.n_vale,
           v.fecha,
+          `"${v.fecha_recojo || v.fecha}"`,
           `"${v.turno || 'T1'}"`,
           `"${(v.cliente || '').replace(/"/g, '""')}"`,
           `"jesus_de_lauricocha_huanuco"`,
@@ -505,6 +501,25 @@ _Conserve este comprobante para su liquidación institucional._`;
     document.addEventListener('DOMContentLoaded', async () => {
       renderSidebar('vales');
       window.onDatosActualizados = cargarVales;
+
+      const btnPin = document.getElementById('btnConfirmarPinAccion');
+      if (btnPin) {
+        btnPin.onclick = async () => {
+          const pin = document.getElementById('inputPinAdmin').value.trim();
+          const ok = await DB.verificarPinAdmin(pin);
+          if (!ok) {
+            alert("❌ PIN de administrador incorrecto.");
+            return;
+          }
+
+          cerrarModal('modalSeguridadPin');
+          if (typeof _accionPendiente === 'function') {
+            await _accionPendiente();
+            _accionPendiente = null;
+          }
+        };
+      }
+
       await cargarVales();
     });
   </script>

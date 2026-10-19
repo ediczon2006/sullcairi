@@ -226,7 +226,7 @@
             ${alertBox}
 
             <div style="margin-top:18px;display:flex;gap:10px">
-              <button class="btn btn-primary btn-full" onclick="abrirModalVarillaje('${t.producto}')" style="background:#0F2A4A;border-color:#0F2A4A;font-size:0.85rem">
+              <button class="btn btn-primary btn-full" data-producto="${esc(t.producto)}" onclick="abrirModalVarillaje(this.dataset.producto)" style="background:#0F2A4A;border-color:#0F2A4A;font-size:0.85rem">
                 📏 Ajustar con Varilla
               </button>
             </div>

@@ -90,7 +90,7 @@
             <thead>
               <tr>
                 <th>N° Vale</th>
-                <th>Fecha</th>
+                <th>Emisión / Recojo</th>
                 <th>Combustible</th>
                 <th>Galones</th>
                 <th>Total Soles</th>
@@ -244,14 +244,14 @@
               </div>
               <div class="btn-group">
                 ${tieneDeuda ? `
-                  <button class="btn btn-success btn-sm" onclick="enviarWhatsAppLiquidacion('${esc(ent.cliente)}')" style="background:#16A34A;border-color:#15803D">
+                  <button class="btn btn-success btn-sm" data-cliente="${esc(ent.cliente)}" onclick="enviarWhatsAppLiquidacion(this.dataset.cliente)" style="background:#16A34A;border-color:#15803D">
                     💬 Enviar Cobranza WhatsApp
                   </button>
-                  <button class="btn btn-primary btn-sm" onclick="abrirDetalleEntidad('${esc(ent.cliente)}')" style="background:#0284C7;border-color:#0284C7">
+                  <button class="btn btn-primary btn-sm" data-cliente="${esc(ent.cliente)}" onclick="abrirDetalleEntidad(this.dataset.cliente)" style="background:#0284C7;border-color:#0284C7">
                     📋 Ver Vales (${ent.valesPendientes.length})
                   </button>
                 ` : `
-                  <button class="btn btn-outline btn-sm" onclick="abrirDetalleEntidad('${esc(ent.cliente)}')">
+                  <button class="btn btn-outline btn-sm" data-cliente="${esc(ent.cliente)}" onclick="abrirDetalleEntidad(this.dataset.cliente)">
                     📋 Historial Completo
                   </button>
                 `}
@@ -271,7 +271,8 @@
 
       let desglose = "";
       ent.valesPendientes.slice(0, 15).forEach(v => {
-        desglose += `• Vale #${v.n_vale} (${v.fecha}): ${Number(v.cantidad).toFixed(2)} GL ${v.producto} - S/. ${Number(v.total).toFixed(2)}\n`;
+        const fecRecojo = v.fecha_recojo ? ` | Recojo: ${v.fecha_recojo}` : '';
+        desglose += `• Vale #${v.n_vale} (Emisión: ${v.fecha}${fecRecojo}): ${Number(v.cantidad).toFixed(2)} GL ${v.producto} - S/. ${Number(v.total).toFixed(2)}\n`;
       });
 
       if (ent.valesPendientes.length > 15) {
@@ -321,7 +322,10 @@ _Por favor coordinar su cancelación o envío de comprobante de depósito bancar
       tbody.innerHTML = valesParaMostrar.map(v => `
         <tr>
           <td><strong style="color:var(--azul)">#${v.n_vale}</strong></td>
-          <td>${v.fecha}</td>
+          <td>
+            <strong style="color:var(--azul)">${v.fecha}</strong>
+            ${v.fecha_recojo ? `<br><small style="color:#0284C7;font-weight:600">🚚 Recojo: ${esc(v.fecha_recojo)}</small>` : ''}
+          </td>
           <td><small class="badge" style="background:#E0F2FE;color:#0284C7">${v.producto}</small></td>
           <td><strong>${Number(v.cantidad).toFixed(2)} GL</strong></td>
           <td style="font-weight:800;color:var(--azul)">S/. ${Number(v.total).toFixed(2)}</td>
@@ -349,37 +353,6 @@ _Por favor coordinar su cancelación o envío de comprobante de depósito bancar
         alert("Error al liquidar vale: " + e.message);
       }
     }
-
-    document.getElementById('btnModalLiquidarTodo').onclick = () => {
-      if (!_entidadActualSeleccionada || _entidadActualSeleccionada.valesPendientes.length === 0) {
-        alert("No hay vales pendientes para liquidar en esta entidad.");
-        return;
-      }
-      document.getElementById('inputPinCobranza').value = '';
-      abrirModal('modalPinCobranza');
-    };
-
-    document.getElementById('btnConfirmarPinCobranza').onclick = async () => {
-      const pin = document.getElementById('inputPinCobranza').value.trim();
-      const ok = await DB.verificarPinAdmin(pin);
-      if (!ok) {
-        alert("❌ PIN de administrador incorrecto.");
-        return;
-      }
-
-      cerrarModal('modalPinCobranza');
-      cerrarModal('modalDetalleEntidad');
-
-      try {
-        for (const v of _entidadActualSeleccionada.valesPendientes) {
-          await DB.actualizarEstadoVale(v.id, 'FACTURADO');
-        }
-        mostrarNotificacionToast(`✅ ¡Todos los vales de ${_entidadActualSeleccionada.cliente} han sido liquidados!`, 'success');
-        await cargarCobranzas();
-      } catch (err) {
-        alert("Error al liquidar vales: " + err.message);
-      }
-    };
 
     function exportarLiquidacionExcel() {
       const lista = Object.values(_agrupadoClientes).filter(e => e.deudaSoles > 0);
@@ -413,6 +386,44 @@ _Por favor coordinar su cancelación o envío de comprobante de depósito bancar
     document.addEventListener('DOMContentLoaded', async () => {
       renderSidebar('cobranza');
       window.onDatosActualizados = cargarCobranzas;
+
+      const btnLiqTodo = document.getElementById('btnModalLiquidarTodo');
+      if (btnLiqTodo) {
+        btnLiqTodo.onclick = () => {
+          if (!_entidadActualSeleccionada || _entidadActualSeleccionada.valesPendientes.length === 0) {
+            alert("No hay vales pendientes para liquidar en esta entidad.");
+            return;
+          }
+          document.getElementById('inputPinCobranza').value = '';
+          abrirModal('modalPinCobranza');
+        };
+      }
+
+      const btnConfirmPin = document.getElementById('btnConfirmarPinCobranza');
+      if (btnConfirmPin) {
+        btnConfirmPin.onclick = async () => {
+          const pin = document.getElementById('inputPinCobranza').value.trim();
+          const ok = await DB.verificarPinAdmin(pin);
+          if (!ok) {
+            alert("❌ PIN de administrador incorrecto.");
+            return;
+          }
+
+          cerrarModal('modalPinCobranza');
+          cerrarModal('modalDetalleEntidad');
+
+          try {
+            for (const v of _entidadActualSeleccionada.valesPendientes) {
+              await DB.actualizarEstadoVale(v.id, 'FACTURADO');
+            }
+            mostrarNotificacionToast(`✅ ¡Todos los vales de ${_entidadActualSeleccionada.cliente} han sido liquidados!`, 'success');
+            await cargarCobranzas();
+          } catch (err) {
+            alert("Error al liquidar vales: " + err.message);
+          }
+        };
+      }
+
       await cargarCobranzas();
 
       // Check if URL has ?cliente=XYZ

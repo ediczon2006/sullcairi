@@ -22,6 +22,7 @@ drop table if exists public.tanques cascade;
 create table public.vales (
   id bigint primary key,
   fecha date not null,
+  fecha_recojo date,
   n_vale integer not null,
   turno varchar(50) default 'T1 (Mañana)',
   cliente text not null,
@@ -39,6 +40,8 @@ create table public.vales (
   creado_el timestamptz not null default timezone('America/Lima', now()),
   actualizado_el timestamptz not null default timezone('America/Lima', now())
 );
+
+alter table public.vales add column if not exists fecha_recojo date;
 
 -- 3. Tabla de tanques de combustible (6,000 GL)
 create table public.tanques (

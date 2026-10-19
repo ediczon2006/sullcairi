@@ -181,6 +181,10 @@ def validar_y_sanitizar_payload(datos: dict) -> dict:
         # Inmutabilidad de sede en cada registro
         v["lugar"] = SEDE_ESTATICA
 
+        # Normalizar fecha_recojo
+        if not v.get("fecha_recojo"):
+            v["fecha_recojo"] = v.get("fecha", datetime.now().strftime("%Y-%m-%d"))
+
     # Validar tanques si vienen en el payload
     if "tanques" in datos:
         if not isinstance(datos["tanques"], dict):

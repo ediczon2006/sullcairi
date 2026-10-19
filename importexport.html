@@ -214,8 +214,8 @@
         const nValeVal = r['N_VALE'] || r['VALE'] || r['N° VALE'] || r['NUMERO'] || r['VALES'] || (idx + 1);
         const n_vale = parseInt(nValeVal, 10) || (idx + 1);
 
-        // Fecha
-        let fecha = r['FECHA'] || r['DIA'] || new Date().toISOString().slice(0, 10);
+        // Fecha de Emisión
+        let fecha = r['FECHA'] || r['FECHA_EMISION'] || r['DIA'] || new Date().toISOString().slice(0, 10);
         if (typeof fecha === 'number') {
           // Fecha serial de Excel
           const dateObj = new Date(Math.round((fecha - 25569) * 86400 * 1000));
@@ -224,6 +224,18 @@
           const parts = fecha.split('/');
           if (parts.length === 3) {
             fecha = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+          }
+        }
+
+        // Fecha de Recojo
+        let fecha_recojo = r['FECHA_RECOJO'] || r['RECOJO'] || fecha;
+        if (typeof fecha_recojo === 'number') {
+          const dateObj = new Date(Math.round((fecha_recojo - 25569) * 86400 * 1000));
+          fecha_recojo = dateObj.toISOString().slice(0, 10);
+        } else if (typeof fecha_recojo === 'string' && fecha_recojo.includes('/')) {
+          const parts = fecha_recojo.split('/');
+          if (parts.length === 3) {
+            fecha_recojo = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
           }
         }
 
@@ -268,6 +280,7 @@
             id: Date.now() + idx + Math.floor(Math.random() * 1000),
             n_vale,
             fecha,
+            fecha_recojo,
             turno,
             cliente,
             lugar: 'jesus_de_lauricocha_huanuco',
@@ -301,7 +314,10 @@
       tbody.innerHTML = _valesParaImportar.slice(0, 50).map(v => `
         <tr>
           <td><strong style="color:var(--azul)">#${v.n_vale}</strong></td>
-          <td>${v.fecha}</td>
+          <td>
+            <strong>${v.fecha}</strong>
+            ${v.fecha_recojo ? `<br><small style="color:#0284C7">🚚 Recojo: ${v.fecha_recojo}</small>` : ''}
+          </td>
           <td><small>${v.turno}</small></td>
           <td><strong>${esc(v.cliente)}</strong></td>
           <td>${esc(v.placa)}</td>
@@ -350,10 +366,10 @@
     }
 
     function descargarPlantillaCsv() {
-      const csv = `\uFEFFN_VALE,FECHA,TURNO,CLIENTE,LUGAR,PLACA,CONDUCTOR,PRODUCTO,CANTIDAD_GLN,PRECIO_UNIT,TOTAL_SOLES,GRIFERO,ESTADO,OBSERVACION
-1001,2026-10-15,T1 (Mañana),UGEL,jesus_de_lauricocha_huanuco,EA-4521,JUAN LOPEZ,DIESEL B5-S50,15.50,16.80,260.40,YANET,PENDIENTE,Camioneta institucional
-1002,2026-10-15,T1 (Mañana),RED DE SALUD,jesus_de_lauricocha_huanuco,EUA-102,CARLOS PEREZ,GASOHOL PREMIUM,10.00,19.50,195.00,YANET,PENDIENTE,Ambulancia de guardia
-1003,2026-10-15,T2 (Tarde),CONSORCIO VIAL JESUS,jesus_de_lauricocha_huanuco,W3K-789,MARIO RIOS,DIESEL B5-S50,50.00,16.80,840.00,CRESILDO,FACTURADO,Volquete obra
+      const csv = `\uFEFFN_VALE,FECHA_EMISION,FECHA_RECOJO,TURNO,CLIENTE,LUGAR,PLACA,CONDUCTOR,PRODUCTO,CANTIDAD_GLN,PRECIO_UNIT,TOTAL_SOLES,GRIFERO,ESTADO,OBSERVACION
+1001,2026-10-15,2026-10-15,T1 (Mañana),UGEL,jesus_de_lauricocha_huanuco,EA-4521,JUAN LOPEZ,DIESEL B5-S50,15.50,16.80,260.40,YANET,PENDIENTE,Camioneta institucional
+1002,2026-10-15,2026-10-15,T1 (Mañana),RED DE SALUD,jesus_de_lauricocha_huanuco,EUA-102,CARLOS PEREZ,GASOHOL PREMIUM,10.00,19.50,195.00,YANET,PENDIENTE,Ambulancia de guardia
+1003,2026-10-15,2026-10-16,T2 (Tarde),CONSORCIO VIAL JESUS,jesus_de_lauricocha_huanuco,W3K-789,MARIO RIOS,DIESEL B5-S50,50.00,16.80,840.00,CRESILDO,FACTURADO,Volquete obra
 `;
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
@@ -420,35 +436,38 @@
       reader.readAsText(file);
     }
 
-    document.getElementById('btnConfirmarRestauracion').onclick = async () => {
-      const pin = document.getElementById('inputPinRestaurar').value.trim();
-      const ok = await DB.verificarPinAdmin(pin);
-      if (!ok) {
-        alert("❌ PIN de Administrador incorrecto.");
-        return;
-      }
-
-      cerrarModal('modalPinRestaurar');
-      try {
-        // Restaurar vales
-        for (const v of _backupParaRestaurar.vales) {
-          await IDB.put('vales', v);
-        }
-        // Restaurar tanques si existen
-        if (Array.isArray(_backupParaRestaurar.tanques)) {
-          for (const t of _backupParaRestaurar.tanques) {
-            await IDB.put('tanques', t);
-          }
-        }
-        mostrarNotificacionToast("✅ Respaldo restaurado con éxito.", 'success');
-        sincronizarConSupabase(false);
-      } catch (err) {
-        alert("Error al restaurar: " + err.message);
-      }
-    };
-
     document.addEventListener('DOMContentLoaded', () => {
       renderSidebar('importexport');
+
+      const btnRestaurar = document.getElementById('btnConfirmarRestauracion');
+      if (btnRestaurar) {
+        btnRestaurar.onclick = async () => {
+          const pin = document.getElementById('inputPinRestaurar').value.trim();
+          const ok = await DB.verificarPinAdmin(pin);
+          if (!ok) {
+            alert("❌ PIN de Administrador incorrecto.");
+            return;
+          }
+
+          cerrarModal('modalPinRestaurar');
+          try {
+            // Restaurar vales
+            for (const v of _backupParaRestaurar.vales) {
+              await IDB.put('vales', v);
+            }
+            // Restaurar tanques si existen
+            if (Array.isArray(_backupParaRestaurar.tanques)) {
+              for (const t of _backupParaRestaurar.tanques) {
+                await IDB.put('tanques', t);
+              }
+            }
+            mostrarNotificacionToast("✅ Respaldo restaurado con éxito.", 'success');
+            sincronizarConSupabase(false);
+          } catch (err) {
+            alert("Error al restaurar: " + err.message);
+          }
+        };
+      }
     });
   </script>
 </body>

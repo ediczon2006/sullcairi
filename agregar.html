@@ -175,13 +175,20 @@
             </div>
           </div>
 
-          <!-- Bloque 5: Fecha, Estado y Observación -->
-          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:16px;margin-bottom:26px">
+          <!-- Bloque 5: Fecha Emisión, Fecha Recojo, Estado y Observación -->
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;margin-bottom:26px">
             <div>
               <label class="form-label" for="valeFecha">
                 📅 Fecha de Emisión <span style="color:var(--rojo)">*</span>
               </label>
               <input type="date" id="valeFecha" class="form-input" required />
+            </div>
+
+            <div>
+              <label class="form-label" for="valeFechaRecojo">
+                🚚 Fecha de Recojo <span style="color:var(--rojo)">*</span>
+              </label>
+              <input type="date" id="valeFechaRecojo" class="form-input" required />
             </div>
 
             <div>
@@ -225,9 +232,22 @@
     let _tanques = { ...TANQUES_DEFAULT };
 
     async function inicializarFormulario() {
-      // 1. Establecer fecha hoy
+      // 1. Establecer fecha hoy para emisión y recojo
       const hoy = new Date().toISOString().slice(0, 10);
-      document.getElementById('valeFecha').value = hoy;
+      const inputFecha = document.getElementById('valeFecha');
+      const inputRecojo = document.getElementById('valeFechaRecojo');
+      inputFecha.value = hoy;
+      inputRecojo.value = hoy;
+
+      // Auto-sincronizar fecha de recojo al cambiar fecha de emisión
+      inputFecha.addEventListener('change', () => {
+        if (!inputRecojo.dataset.manual) {
+          inputRecojo.value = inputFecha.value;
+        }
+      });
+      inputRecojo.addEventListener('input', () => {
+        inputRecojo.dataset.manual = 'true';
+      });
 
       // 2. Cargar siguiente correlativo
       const prox = await DB.obtenerSiguienteVale();
@@ -339,6 +359,7 @@
 
       const n_vale = Number(document.getElementById('valeNumero').value);
       const fecha = document.getElementById('valeFecha').value;
+      const fecha_recojo = document.getElementById('valeFechaRecojo').value || fecha;
       const producto = document.getElementById('valeProducto').value;
       const cantidad = parseFloat(document.getElementById('valeCantidad').value);
       const precio = parseFloat(document.getElementById('valePrecio').value);
@@ -365,6 +386,7 @@
       const nuevoVale = {
         n_vale,
         fecha,
+        fecha_recojo,
         turno,
         cliente,
         lugar: 'jesus_de_lauricocha_huanuco',
@@ -395,7 +417,8 @@ RUC: 20608945123 | Tel: 962 123 456
 📄 *VALE DE COMBUSTIBLE EMITIDO*
 ────────────────────────
 *N° Vale:* #${guardado.n_vale}
-*Fecha:* ${guardado.fecha} (${guardado.turno})
+*Fecha Emisión:* ${guardado.fecha} (${guardado.turno})
+*Fecha Recojo:* ${guardado.fecha_recojo || guardado.fecha}
 *Cliente:* ${guardado.cliente}
 *Placa:* ${guardado.placa}
 *Conductor:* ${guardado.conductor}

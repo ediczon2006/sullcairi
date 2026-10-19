@@ -41,8 +41,8 @@ def create_fuel_control_excel():
     ws1.title = "Control de Vales"
     ws1.views.sheetView[0].showGridLines = True
 
-    # Title Banner
-    ws1.merge_cells("A1:N1")
+    # Title Banner — now 15 columns (A:O) with FECHA_RECOJO added
+    ws1.merge_cells("A1:O1")
     ws1["A1"] = "ESTACIÓN DE SERVICIOS - REGISTRO Y CONTROL DE VALES DE CRÉDITO"
     ws1["A1"].font = Font(name=font_family, size=14, bold=True, color="FFFFFF")
     ws1["A1"].fill = PatternFill(start_color="14361B", end_color="14361B", fill_type="solid")
@@ -50,14 +50,19 @@ def create_fuel_control_excel():
     ws1.row_dimensions[1].height = 32
 
     # KPI summary cards in rows 3-4
+    # Columns shifted: FECHA_RECOJO is now col C; data starts at col E onwards
     kpis = [
-        ("B3", "C3", "B4", "C4", "TOTAL VALES REGISTRADOS", "=COUNTA(D8:D100)", "0"),
-        ("E3", "F3", "E4", "F4", "TOTAL DIESEL (GLN)", '=SUMIFS(I8:I100, H8:H100, "DIESEL B5", M8:M100, "<>ANULADO")', '#,##0.00 "Gln"'),
-        ("H3", "I3", "H4", "I4", "TOTAL PREMIUM (GLN)", '=SUMIFS(I8:I100, H8:H100, "PREMIUM", M8:M100, "<>ANULADO")', '#,##0.00 "Gln"'),
-        ("K3", "L3", "K4", "L4", "IMPORTE TOTAL (S/.)", '=SUMIF(M8:M100, "<>ANULADO", K8:K100)', '"S/." #,##0.00'),
-        ("M3", "N3", "M4", "N4", "VALES ANULADOS", '=COUNTIF(M8:M100, "ANULADO")', '0 "Vales"')
+        ("B3", "C3", "B4", "C4", "TOTAL VALES REGISTRADOS", "=COUNTA(E8:E100)", "0"),
+        ("E3", "F3", "E4", "F4", "TOTAL DIESEL (GLN)",
+         '=SUMIFS(J8:J100, I8:I100, "DIESEL B5", N8:N100, "<>ANULADO")', '#,##0.00 "Gln"'),
+        ("H3", "I3", "H4", "I4", "TOTAL PREMIUM (GLN)",
+         '=SUMIFS(J8:J100, I8:I100, "PREMIUM", N8:N100, "<>ANULADO")', '#,##0.00 "Gln"'),
+        ("K3", "L3", "K4", "L4", "IMPORTE TOTAL (S/.)",
+         '=SUMIF(N8:N100, "<>ANULADO", L8:L100)', '"S/." #,##0.00'),
+        ("M3", "N3", "M4", "N4", "VALES ANULADOS",
+         '=COUNTIF(N8:N100, "ANULADO")', '0 "Vales"')
     ]
-    
+
     for t_tl, t_br, v_tl, v_br, title, formula, num_fmt in kpis:
         ws1.merge_cells(f"{t_tl}:{t_br}")
         cell_t = ws1[t_tl]
@@ -65,7 +70,7 @@ def create_fuel_control_excel():
         cell_t.font = Font(name=font_family, size=8, bold=True, color="555555")
         cell_t.alignment = Alignment(horizontal="center", vertical="center")
         cell_t.fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
-        
+
         ws1.merge_cells(f"{v_tl}:{v_br}")
         cell_v = ws1[v_tl]
         cell_v.value = formula
@@ -74,22 +79,23 @@ def create_fuel_control_excel():
         cell_v.fill = card_fill
         cell_v.number_format = num_fmt
 
-    # Headers for Table
+    # Headers for Table — 15 columns, FECHA_RECOJO inserted after FECHA
     headers = [
-        "ITEM",           # A
-        "FECHA",          # B
-        "TURNO",          # C
-        "N° VALE",        # D
-        "CLIENTE / EMPRESA", # E
-        "PLACA",          # F
-        "CONDUCTOR",      # G
-        "PRODUCTO",       # H
-        "CANTIDAD (GLN)", # I
-        "PRECIO (S/)",    # J
-        "TOTAL (S/)",     # K
-        "GRIFERO / ISLA", # L
-        "ESTADO",         # M
-        "N° FACTURA / DOC"# N
+        "ITEM",              # A - col 1
+        "FECHA EMISIÓN",     # B - col 2
+        "FECHA RECOJO",      # C - col 3  ← NEW
+        "TURNO",             # D - col 4
+        "N° VALE",           # E - col 5
+        "CLIENTE / EMPRESA", # F - col 6
+        "PLACA",             # G - col 7
+        "CONDUCTOR",         # H - col 8
+        "PRODUCTO",          # I - col 9
+        "CANTIDAD (GLN)",    # J - col 10
+        "PRECIO (S/)",       # K - col 11
+        "TOTAL (S/)",        # L - col 12
+        "GRIFERO / ISLA",    # M - col 13
+        "ESTADO",            # N - col 14
+        "N° FACTURA / DOC"   # O - col 15
     ]
 
     ws1.row_dimensions[7].height = 24
@@ -100,28 +106,30 @@ def create_fuel_control_excel():
         cell.font = header_font
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
-    # Populate Sample Data matching user's original image
+    # Sample data — 15 values per row.
+    # (ITEM, FECHA_EMISION, FECHA_RECOJO, TURNO, N_VALE, CLIENTE, PLACA,
+    #  CONDUCTOR, PRODUCTO, CANTIDAD, PRECIO, TOTAL_formula, GRIFERO, ESTADO, FACTURA)
     sample_data = [
-        (1, "2026-08-17", "T1", 377, "Transportes Andina S.A.C.", "A1B-823", "Carlos Rojas", "PREMIUM", 8.0, 19.50, "=I8*J8", "Juan P.", "FACTURADO", "F001-00452"),
-        (2, "2026-08-17", "T1", 378, "Constructora del Sur", "C4F-912", "Manuel Vega", "PREMIUM", 3.0, 19.50, "=I9*J9", "Juan P.", "FACTURADO", "F001-00455"),
-        (3, "2026-08-18", "T2", 379, "-", "-", "-", "-", 0.0, 0.0, "=I10*J10", "Pedro M.", "ANULADO", "ERROR LLENADO"),
-        (4, "2026-08-19", "T1", 380, "Distribuidora Lima", "T6U-711", "Jorge Quispe", "DIESEL B5", 10.0, 16.80, "=I11*J11", "Luis G.", "FACTURADO", "F001-00460"),
-        (5, "2026-08-19", "T2", 381, "Transportes Andina S.A.C.", "A1B-823", "Carlos Rojas", "PREMIUM", 4.0, 19.50, "=I12*J12", "Pedro M.", "PENDIENTE", "-"),
-        (6, "2026-08-17", "T3", 382, "Minera Horizonte", "V7X-551", "Alonso Ruiz", "PREMIUM", 1.0, 19.50, "=I13*J13", "Mario S.", "PENDIENTE", "-"),
-        (7, "2026-08-20", "T1", 383, "Constructora del Sur", "C4F-912", "Manuel Vega", "PREMIUM", 4.0, 19.50, "=I14*J14", "Juan P.", "PENDIENTE", "-"),
-        (8, "2026-08-21", "T1", 384, "Distribuidora Lima", "T6U-711", "Jorge Quispe", "PREMIUM", 7.0, 19.50, "=I15*J15", "Luis G.", "PENDIENTE", "-"),
-        (9, "2026-08-21", "T2", 385, "Agropecuaria San José", "B8K-102", "Raúl Castro", "PREMIUM", 8.0, 19.50, "=I16*J16", "Pedro M.", "PENDIENTE", "-"),
-        (10, "2026-08-22", "T1", 386, "-", "-", "-", "-", 0.0, 0.0, "=I17*J17", "Juan P.", "ANULADO", "VALE ROTO"),
-        (11, "2026-08-25", "T1", 387, "Distribuidora Lima", "T6U-711", "Jorge Quispe", "DIESEL B5", 11.0, 16.80, "=I18*J18", "Luis G.", "PENDIENTE", "-"),
-        (12, "2026-08-25", "T2", 388, "Transportes Andina S.A.C.", "A1B-823", "Carlos Rojas", "PREMIUM", 4.0, 19.50, "=I19*J19", "Pedro M.", "PENDIENTE", "-"),
-        (13, "2026-08-26", "T1", 389, "Constructora del Sur", "C4F-912", "Manuel Vega", "PREMIUM", 4.0, 19.50, "=I20*J20", "Juan P.", "PENDIENTE", "-"),
-        (14, "2026-08-27", "T1", 390, "Agropecuaria San José", "B8K-102", "Raúl Castro", "PREMIUM", 8.0, 19.50, "=I21*J21", "Luis G.", "PENDIENTE", "-"),
-        (15, "2026-08-31", "T2", 391, "Transportes Andina S.A.C.", "B3M-442", "Felipe Díaz", "PREMIUM", 7.0, 19.50, "=I22*J22", "Pedro M.", "PENDIENTE", "-"),
-        (16, "2026-08-31", "T3", 392, "-", "-", "-", "-", 0.0, 0.0, "=I23*J23", "Mario S.", "ANULADO", "CORRELATIVO SALTADO"),
-        (17, "2026-08-31", "T3", 393, "-", "-", "-", "-", 0.0, 0.0, "=I24*J24", "Mario S.", "ANULADO", "EXTRAVIO"),
-        (18, "2026-09-01", "T1", 394, "Distribuidora Lima", "T6U-711", "Jorge Quispe", "DIESEL B5", 6.0, 16.80, "=I25*J25", "Luis G.", "PENDIENTE", "-"),
-        (19, "2026-09-02", "T2", 395, "Minera Horizonte", "V7X-551", "Alonso Ruiz", "PREMIUM", 12.0, 19.50, "=I26*J26", "Pedro M.", "PENDIENTE", "-"),
-        (20, "2026-09-02", "T3", 396, "-", "-", "-", "-", 0.0, 0.0, "=I27*J27", "Mario S.", "ANULADO", "ERROR EN PLACA")
+        (1,  "2026-08-17", "2026-08-17", "T1", 377, "Transportes Andina S.A.C.", "A1B-823", "Carlos Rojas",  "PREMIUM",   8.0,  19.50, "=J8*K8",   "Juan P.",  "FACTURADO", "F001-00452"),
+        (2,  "2026-08-17", "2026-08-18", "T1", 378, "Constructora del Sur",      "C4F-912", "Manuel Vega",   "PREMIUM",   3.0,  19.50, "=J9*K9",   "Juan P.",  "FACTURADO", "F001-00455"),
+        (3,  "2026-08-18", "2026-08-18", "T2", 379, "-",                          "-",       "-",             "-",         0.0,   0.0,  "=J10*K10", "Pedro M.", "ANULADO",   "ERROR LLENADO"),
+        (4,  "2026-08-19", "2026-08-20", "T1", 380, "Distribuidora Lima",         "T6U-711", "Jorge Quispe",  "DIESEL B5", 10.0, 16.80, "=J11*K11", "Luis G.",  "FACTURADO", "F001-00460"),
+        (5,  "2026-08-19", "2026-08-19", "T2", 381, "Transportes Andina S.A.C.", "A1B-823", "Carlos Rojas",  "PREMIUM",   4.0,  19.50, "=J12*K12", "Pedro M.", "PENDIENTE", "-"),
+        (6,  "2026-08-17", "2026-08-20", "T3", 382, "Minera Horizonte",           "V7X-551", "Alonso Ruiz",   "PREMIUM",   1.0,  19.50, "=J13*K13", "Mario S.", "PENDIENTE", "-"),
+        (7,  "2026-08-20", "2026-08-20", "T1", 383, "Constructora del Sur",       "C4F-912", "Manuel Vega",   "PREMIUM",   4.0,  19.50, "=J14*K14", "Juan P.",  "PENDIENTE", "-"),
+        (8,  "2026-08-21", "2026-08-22", "T1", 384, "Distribuidora Lima",         "T6U-711", "Jorge Quispe",  "PREMIUM",   7.0,  19.50, "=J15*K15", "Luis G.",  "PENDIENTE", "-"),
+        (9,  "2026-08-21", "2026-08-21", "T2", 385, "Agropecuaria San José",      "B8K-102", "Raúl Castro",   "PREMIUM",   8.0,  19.50, "=J16*K16", "Pedro M.", "PENDIENTE", "-"),
+        (10, "2026-08-22", "2026-08-22", "T1", 386, "-",                           "-",       "-",             "-",         0.0,   0.0,  "=J17*K17", "Juan P.",  "ANULADO",   "VALE ROTO"),
+        (11, "2026-08-25", "2026-08-26", "T1", 387, "Distribuidora Lima",          "T6U-711", "Jorge Quispe",  "DIESEL B5", 11.0, 16.80, "=J18*K18", "Luis G.",  "PENDIENTE", "-"),
+        (12, "2026-08-25", "2026-08-25", "T2", 388, "Transportes Andina S.A.C.",  "A1B-823", "Carlos Rojas",  "PREMIUM",   4.0,  19.50, "=J19*K19", "Pedro M.", "PENDIENTE", "-"),
+        (13, "2026-08-26", "2026-08-27", "T1", 389, "Constructora del Sur",        "C4F-912", "Manuel Vega",   "PREMIUM",   4.0,  19.50, "=J20*K20", "Juan P.",  "PENDIENTE", "-"),
+        (14, "2026-08-27", "2026-08-27", "T1", 390, "Agropecuaria San José",       "B8K-102", "Raúl Castro",   "PREMIUM",   8.0,  19.50, "=J21*K21", "Luis G.",  "PENDIENTE", "-"),
+        (15, "2026-08-31", "2026-09-01", "T2", 391, "Transportes Andina S.A.C.",  "B3M-442", "Felipe Díaz",   "PREMIUM",   7.0,  19.50, "=J22*K22", "Pedro M.", "PENDIENTE", "-"),
+        (16, "2026-08-31", "2026-08-31", "T3", 392, "-",                            "-",       "-",             "-",         0.0,   0.0,  "=J23*K23", "Mario S.", "ANULADO",   "CORRELATIVO SALTADO"),
+        (17, "2026-08-31", "2026-08-31", "T3", 393, "-",                            "-",       "-",             "-",         0.0,   0.0,  "=J24*K24", "Mario S.", "ANULADO",   "EXTRAVIO"),
+        (18, "2026-09-01", "2026-09-02", "T1", 394, "Distribuidora Lima",           "T6U-711", "Jorge Quispe",  "DIESEL B5", 6.0,  16.80, "=J25*K25", "Luis G.",  "PENDIENTE", "-"),
+        (19, "2026-09-02", "2026-09-03", "T2", 395, "Minera Horizonte",             "V7X-551", "Alonso Ruiz",   "PREMIUM",  12.0,  19.50, "=J26*K26", "Pedro M.", "PENDIENTE", "-"),
+        (20, "2026-09-02", "2026-09-02", "T3", 396, "-",                             "-",       "-",             "-",         0.0,   0.0,  "=J27*K27", "Mario S.", "ANULADO",   "ERROR EN PLACA"),
     ]
 
     red_fill = PatternFill(start_color="FDE8E8", end_color="FDE8E8", fill_type="solid")
@@ -131,30 +139,30 @@ def create_fuel_control_excel():
     for i, row in enumerate(sample_data):
         r = start_row + i
         ws1.row_dimensions[r].height = 20
-        is_anulado = (row[12] == "ANULADO")
-        
+        is_anulado = (row[13] == "ANULADO")  # index 13 = ESTADO (0-based)
+
         for c, val in enumerate(row, 1):
             cell = ws1.cell(row=r, column=c)
             cell.value = val
             cell.font = Font(name=font_family, size=9)
             cell.border = thin_border
-            
-            # Alignments
-            if c in (1, 2, 3, 4, 6, 8, 12, 13, 14):
+
+            # Alignments — updated column indices for new layout
+            if c in (1, 2, 3, 4, 5, 7, 9, 13, 14, 15):  # ITEM, dates, TURNO, N_VALE, PLACA, PRODUCTO, GRIFERO, ESTADO, FACTURA
                 cell.alignment = Alignment(horizontal="center", vertical="center")
-            elif c in (9, 10, 11):
+            elif c in (10, 11, 12):  # CANTIDAD, PRECIO, TOTAL
                 cell.alignment = Alignment(horizontal="right", vertical="center")
             else:
                 cell.alignment = Alignment(horizontal="left", vertical="center")
-                
+
             # Number formats
-            if c == 9: # Cantidad
+            if c == 10:   # Cantidad (GLN)
                 cell.number_format = '#,##0.00'
-            elif c == 10: # Precio
+            elif c == 11:  # Precio
                 cell.number_format = '"S/." #,##0.00'
-            elif c == 11: # Total
+            elif c == 12:  # Total
                 cell.number_format = '"S/." #,##0.00'
-                
+
             if is_anulado:
                 cell.fill = red_fill
                 cell.font = red_font
@@ -162,27 +170,27 @@ def create_fuel_control_excel():
     # Total Row
     tot_row = start_row + len(sample_data)
     ws1.row_dimensions[tot_row].height = 22
-    ws1.merge_cells(f"A{tot_row}:H{tot_row}")
+    ws1.merge_cells(f"A{tot_row}:I{tot_row}")
     ws1[f"A{tot_row}"] = "TOTALES GENERALES:"
     ws1[f"A{tot_row}"].font = total_font
     ws1[f"A{tot_row}"].alignment = Alignment(horizontal="right", vertical="center")
     ws1[f"A{tot_row}"].fill = total_fill
-    
-    ws1[f"I{tot_row}"] = f"=SUM(I{start_row}:I{tot_row-1})"
-    ws1[f"I{tot_row}"].number_format = '#,##0.00 "Gln"'
-    ws1[f"I{tot_row}"].font = total_font
-    ws1[f"I{tot_row}"].fill = total_fill
-    ws1[f"I{tot_row}"].alignment = Alignment(horizontal="right", vertical="center")
 
+    ws1[f"J{tot_row}"] = f"=SUM(J{start_row}:J{tot_row-1})"
+    ws1[f"J{tot_row}"].number_format = '#,##0.00 "Gln"'
+    ws1[f"J{tot_row}"].font = total_font
     ws1[f"J{tot_row}"].fill = total_fill
+    ws1[f"J{tot_row}"].alignment = Alignment(horizontal="right", vertical="center")
 
-    ws1[f"K{tot_row}"] = f"=SUM(K{start_row}:K{tot_row-1})"
-    ws1[f"K{tot_row}"].number_format = '"S/." #,##0.00'
-    ws1[f"K{tot_row}"].font = total_font
     ws1[f"K{tot_row}"].fill = total_fill
-    ws1[f"K{tot_row}"].alignment = Alignment(horizontal="right", vertical="center")
 
-    for col_c in ["L", "M", "N"]:
+    ws1[f"L{tot_row}"] = f"=SUM(L{start_row}:L{tot_row-1})"
+    ws1[f"L{tot_row}"].number_format = '"S/." #,##0.00'
+    ws1[f"L{tot_row}"].font = total_font
+    ws1[f"L{tot_row}"].fill = total_fill
+    ws1[f"L{tot_row}"].alignment = Alignment(horizontal="right", vertical="center")
+
+    for col_c in ["M", "N", "O"]:
         ws1[f"{col_c}{tot_row}"].fill = total_fill
 
     # =============================================================
@@ -312,8 +320,9 @@ def create_fuel_control_excel():
             col_letter = get_column_letter(col[0].column)
             max_len = 0
             for cell in col:
-                # ignore merged title row length
-                if cell.row in (1, 2, 3, 4) and ws == ws1 and col_letter in ("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"):
+                # ignore merged title / KPI rows for ws1
+                if cell.row in (1, 2, 3, 4) and ws == ws1 and col_letter in (
+                        "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O"):
                     continue
                 if cell.row == 1:
                     continue
@@ -323,21 +332,22 @@ def create_fuel_control_excel():
                         max_len = max(max_len, len(val_str))
             ws.column_dimensions[col_letter].width = max(max_len + 5, 12)
 
-    # Specific adjustments for readability
-    ws1.column_dimensions["A"].width = 7
-    ws1.column_dimensions["B"].width = 13
-    ws1.column_dimensions["C"].width = 10
-    ws1.column_dimensions["D"].width = 11
-    ws1.column_dimensions["E"].width = 28
-    ws1.column_dimensions["F"].width = 12
-    ws1.column_dimensions["G"].width = 18
-    ws1.column_dimensions["H"].width = 14
-    ws1.column_dimensions["I"].width = 16
-    ws1.column_dimensions["J"].width = 15
-    ws1.column_dimensions["K"].width = 16
-    ws1.column_dimensions["L"].width = 16
-    ws1.column_dimensions["M"].width = 14
-    ws1.column_dimensions["N"].width = 20
+    # Specific column widths for Sheet 1 (15 columns A–O)
+    ws1.column_dimensions["A"].width = 7   # ITEM
+    ws1.column_dimensions["B"].width = 14  # FECHA EMISIÓN
+    ws1.column_dimensions["C"].width = 14  # FECHA RECOJO  ← NEW
+    ws1.column_dimensions["D"].width = 10  # TURNO
+    ws1.column_dimensions["E"].width = 11  # N° VALE
+    ws1.column_dimensions["F"].width = 28  # CLIENTE / EMPRESA
+    ws1.column_dimensions["G"].width = 12  # PLACA
+    ws1.column_dimensions["H"].width = 18  # CONDUCTOR
+    ws1.column_dimensions["I"].width = 14  # PRODUCTO
+    ws1.column_dimensions["J"].width = 16  # CANTIDAD (GLN)
+    ws1.column_dimensions["K"].width = 15  # PRECIO (S/)
+    ws1.column_dimensions["L"].width = 16  # TOTAL (S/)
+    ws1.column_dimensions["M"].width = 16  # GRIFERO / ISLA
+    ws1.column_dimensions["N"].width = 14  # ESTADO
+    ws1.column_dimensions["O"].width = 22  # N° FACTURA / DOC
 
     ws2.column_dimensions["A"].width = 13
     ws2.column_dimensions["B"].width = 14

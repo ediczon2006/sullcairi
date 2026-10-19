@@ -393,6 +393,7 @@ const DB = {
     const valeFinal = {
       id,
       fecha: vale.fecha,
+      fecha_recojo: vale.fecha_recojo || vale.fecha,
       n_vale: Number(vale.n_vale),
       turno: vale.turno || 'T1 (Mañana)',
       cliente: SullcairiSecurity.sanitize(vale.cliente || 'VENTA DIARIA'),
@@ -793,6 +794,7 @@ async function sincronizarConSupabase(mostrarFeedback = true) {
         return {
           id: Number(v.id),
           fecha: v.fecha,
+          fecha_recojo: v.fecha_recojo || v.fecha,
           n_vale: Number(v.n_vale),
           turno: v.turno,
           cliente: v.cliente,

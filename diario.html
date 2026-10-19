@@ -96,7 +96,8 @@
             <tr>
               <th>N° Vale</th>
               <th>Día</th>
-              <th>Fecha</th>
+              <th>Fecha Emisión</th>
+              <th>Fecha Recojo</th>
               <th>Turno</th>
               <th>Cliente / Razón Social</th>
               <th>Placa</th>
@@ -109,7 +110,7 @@
             </tr>
           </thead>
           <tbody id="tbodyDiario">
-            <tr><td colspan="12" style="text-align:center;padding:25px;color:var(--gris)">Cargando arqueo diario...</td></tr>
+            <tr><td colspan="13" style="text-align:center;padding:25px;color:var(--gris)">Cargando arqueo diario...</td></tr>
           </tbody>
         </table>
       </div>
@@ -158,7 +159,7 @@
       let sumDiesel = 0;
 
       if (_valesDiarios.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:25px;color:var(--gris)">No hay registros de despacho para la fecha y filtros seleccionados.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:25px;color:var(--gris)">No hay registros de despacho para la fecha y filtros seleccionados.</td></tr>';
       } else {
         tbody.innerHTML = _valesDiarios.map(v => {
           const cant = Number(v.cantidad) || 0;
@@ -174,7 +175,8 @@
             <tr>
               <td><strong style="color:var(--azul)">#${v.n_vale}</strong></td>
               <td><span class="badge" style="background:#E2E8F0;color:#334155">${diaNum}</span></td>
-              <td>${esc(v.fecha)}</td>
+              <td><strong style="color:var(--azul)">${esc(v.fecha)}</strong></td>
+              <td><span style="color:#0284C7;font-weight:600">🚚 ${esc(v.fecha_recojo || v.fecha)}</span></td>
               <td><small>${esc(v.turno || 'T1')}</small></td>
               <td><strong>${esc(v.cliente)}</strong></td>
               <td>${esc(v.placa || '-')}</td>
@@ -202,13 +204,14 @@
       }
 
       const fecha = document.getElementById('selFechaDiario').value || 'Reporte';
-      let csv = "\uFEFFN_VALE,DIA,FECHA,TURNO,CLIENTE,LUGAR,PLACA,PRODUCTO,GALONES,PRECIO_UNIT,TOTAL_SOLES,GRIFERO,ESTADO\n";
+      let csv = "\uFEFFN_VALE,DIA,FECHA_EMISION,FECHA_RECOJO,TURNO,CLIENTE,LUGAR,PLACA,PRODUCTO,GALONES,PRECIO_UNIT,TOTAL_SOLES,GRIFERO,ESTADO\n";
       _valesDiarios.forEach(v => {
         const diaNum = v.fecha ? v.fecha.split('-')[2] : '';
         csv += [
           v.n_vale,
           diaNum,
           v.fecha,
+          `"${v.fecha_recojo || v.fecha}"`,
           `"${v.turno || 'T1'}"`,
           `"${(v.cliente || '').replace(/"/g, '""')}"`,
           `"jesus_de_lauricocha_huanuco"`,

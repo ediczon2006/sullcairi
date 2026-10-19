@@ -16,6 +16,7 @@ DROP TABLE IF EXISTS public.tanques CASCADE;
 CREATE TABLE public.vales (
   id BIGINT PRIMARY KEY,
   fecha DATE NOT NULL,
+  fecha_recojo DATE,
   n_vale INTEGER NOT NULL,
   turno VARCHAR(50) DEFAULT 'T1 (Mañana)',
   cliente TEXT NOT NULL,
@@ -33,6 +34,8 @@ CREATE TABLE public.vales (
   creado_el TIMESTAMPTZ NOT NULL DEFAULT timezone('America/Lima', NOW()),
   actualizado_el TIMESTAMPTZ NOT NULL DEFAULT timezone('America/Lima', NOW())
 );
+
+ALTER TABLE public.vales ADD COLUMN IF NOT EXISTS fecha_recojo DATE;
 
 -- 3. TABLA DE TANQUES DE COMBUSTIBLE (6,000 GL TOTAL)
 CREATE TABLE public.tanques (

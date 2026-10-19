@@ -155,7 +155,7 @@
           <thead>
             <tr>
               <th>N° Vale</th>
-              <th>Fecha</th>
+              <th>Emisión / Recojo</th>
               <th>Cliente</th>
               <th>Combustible</th>
               <th>Galones</th>
@@ -288,7 +288,10 @@
             return `
               <tr>
                 <td><strong style="color:var(--azul)">#${v.n_vale}</strong></td>
-                <td>${esc(v.fecha)}</td>
+                <td>
+                  <strong style="color:var(--azul)">${esc(v.fecha)}</strong>
+                  ${v.fecha_recojo ? `<br><small style="color:#0284C7;font-weight:600">🚚 Recojo: ${esc(v.fecha_recojo)}</small>` : ''}
+                </td>
                 <td><strong>${esc(v.cliente)}</strong></td>
                 <td><span class="badge" style="background:#E0F2FE;color:#0284C7;font-size:0.75rem">${esc(v.producto)}</span></td>
                 <td><strong>${Number(v.cantidad).toFixed(2)} GL</strong></td>
